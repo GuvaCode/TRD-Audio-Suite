@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <ProjectOptions>
+    <Version Value="12"/>
+    <General>
+      <Flags>
+        <MainUnitHasCreateFormStatements Value="False"/>
+        <MainUnitHasTitleStatement Value="False"/>
+        <MainUnitHasScaledStatement Value="False"/>
+      </Flags>
+      <SessionStorage Value="InProjectDir"/>
+      <Title Value="tas"/>
+      <UseAppBundle Value="False"/>
+      <ResourceType Value="res"/>
+    </General>
+    <BuildModes>
+      <Item Name="Default" Default="True"/>
+    </BuildModes>
+    <PublishOptions>
+      <Version Value="2"/>
+      <UseFileFilters Value="True"/>
+    </PublishOptions>
+    <RunParams>
+      <FormatVersion Value="2"/>
+    </RunParams>
+    <RequiredPackages>
+      <Item>
+        <PackageName Value="LazUtils"/>
+      </Item>
+      <Item>
+        <PackageName Value="ray4laz"/>
+      </Item>
+    </RequiredPackages>
+    <Units>
+      <Unit>
+        <Filename Value="tas.lpr"/>
+        <IsPartOfProject Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="trdos_reader.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="playerui.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="playerUi"/>
+      </Unit>
+      <Unit>
+        <Filename Value="tunezxplayer.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TuneZXPlayer"/>
+      </Unit>
+      <Unit>
+        <Filename Value="spectrumvisualizer.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="SpectrumVisualizer"/>
+      </Unit>
+      <Unit>
+        <Filename Value="spectrumpanelui.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="spectrumpanelUi"/>
+      </Unit>
+      <Unit>
+        <Filename Value="toolbar.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Toolbar"/>
+      </Unit>
+      <Unit>
+        <Filename Value="fonttools.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="fontTools"/>
+      </Unit>
+      <Unit>
+        <Filename Value="extratools.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit>
+    </Units>
+    <Debugger>
+      <StoreDebuggerClassConfInSession Value="True"/>
+    </Debugger>
+  </ProjectOptions>
+  <CompilerOptions>
+    <Version Value="11"/>
+    <Target>
+      <Filename Value="../bin/tas"/>
+    </Target>
+    <SearchPaths>
+      <IncludeFiles Value="$(ProjOutDir)"/>
+      <UnitOutputDirectory Value="../lib/$(TargetCPU)-$(TargetOS)"/>
+    </SearchPaths>
+    <Linking>
+      <Debugging>
+        <DebugInfoType Value="dsDwarf3"/>
+      </Debugging>
+    </Linking>
+    <Other>
+      <CustomOptions Value="-k&quot;-rpath=\$ORIGIN&quot;"/>
+    </Other>
+  </CompilerOptions>
+  <Debugging>
+    <Exceptions>
+      <Item>
+        <Name Value="EAbort"/>
+      </Item>
+      <Item>
+        <Name Value="ECodetoolError"/>
+      </Item>
+      <Item>
+        <Name Value="EFOpenError"/>
+      </Item>
+    </Exceptions>
+  </Debugging>
+</CONFIG>
