@@ -17,6 +17,7 @@ type
     FHeight: Integer;
     FTitle: string;
     FVisualizer: TSpectrumVisualizer;
+    FState: Integer;
   public
     constructor Create;
     destructor Destroy; override;
@@ -81,13 +82,20 @@ begin
 
   // Используем стандартную панель raygui с заголовком
   GuiPanel(panelRect, PChar('#125#' + FTitle));
+      GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_CENTER);
+     GuiSetStyle(SLIDER, SLIDER_PADDING, 1);
+     //GuiSetStyle(UILABEL,
+      GuiToggleSlider(RectangleCreate(FLeft + FWidth - 50 , FTop + 4, 45, 16), '#44#;#45#', @FState);
 
+      GuiSetStyle(SLIDER, SLIDER_PADDING, 0);
   // Область для содержимого (внутри панели, с отступом от краев и заголовка)
   contentRect := RectangleCreate(FLeft + PANEL_PADDING,
                                   FTop + 24 + PANEL_PADDING,  // 24 - высота заголовка панели
                                   FWidth - PANEL_PADDING * 2,
                                   FHeight - 24 - PANEL_PADDING * 2);
 
+
+  if FState = 1 then exit;
   // Рисуем спектр
   if (contentRect.height > 20) then
   begin

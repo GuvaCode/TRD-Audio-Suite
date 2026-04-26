@@ -70,7 +70,7 @@ type
     function IsShuffleEnabled: Boolean;
     procedure SetShuffle(state: Boolean);
     function GetColorThemeIndex: Integer; // Получить текущую тему
-
+    procedure SetColorThemeIndex(Indx: Integer);
     property OnOpenClick: TNotifyEvent read FOnOpenClick write FOnOpenClick;
     property OnExportClick: TNotifyEvent read FOnExportClick write FOnExportClick;
     property OnNewDriveClick:  TNotifyEvent read FOnNewDriveClick write FOnNewDriveClick;
@@ -341,6 +341,11 @@ end;
 function TToolbar.GetColorThemeIndex: Integer;
 begin
   Result := FButtons[16].ComboIndex;
+end;
+
+procedure TToolbar.SetColorThemeIndex(Indx: Integer);
+begin
+  FButtons[16].ComboIndex := Indx;
 end;
 
 procedure TToolbar.Draw;

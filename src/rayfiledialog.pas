@@ -5,11 +5,14 @@ unit rayfiledialog;
 interface
 
 uses
-  Classes, SysUtils, raylib, raygui;
+  raylib, raygui, Classes, SysUtils;
 
 type
 
   // Базовый класс для всех диалогов
+
+  { TCustomFileDialog }
+
   TCustomFileDialog = class
   private
     // Window management
@@ -43,6 +46,9 @@ type
     procedure FreeIcons;
     function GetPrevDirectoryPath(const DirPath: string): string;
     procedure LoadDirectoryContents;
+    {$IFDEF WINDOWS}
+    procedure LoadDrivesList;
+    {$ENDIF}
     procedure UpdateWindowTitle;
 
   protected
@@ -51,6 +57,10 @@ type
     function ValidateBeforeClose: Boolean; virtual;
     procedure OnFileSelected(const FilePath: string); virtual;
     procedure CancelDialog; virtual;
+
+    // Virtual method to get/set last used directory for specific dialog type
+    function GetLastUsedDir: string; virtual; abstract;
+    procedure SetLastUsedDir(const Dir: string); virtual; abstract;
 
   public
     constructor Create;
@@ -75,6 +85,8 @@ type
     function ValidateBeforeClose: Boolean; override;
     procedure OnFileSelected(const FilePath: string); override;
     procedure CancelDialog; override;
+    function GetLastUsedDir: string; override;
+    procedure SetLastUsedDir(const Dir: string); override;
   end;
 
   // Диалог сохранения файла
@@ -92,6 +104,8 @@ type
     function ValidateBeforeClose: Boolean; override;
     procedure OnFileSelected(const FilePath: string); override;
     procedure CancelDialog; override;
+    function GetLastUsedDir: string; override;
+    procedure SetLastUsedDir(const Dir: string); override;
 
   public
     constructor Create;
@@ -106,6 +120,11 @@ const
   PATH_SEPARATOR = {$IFDEF WINDOWS} '\' {$ELSE} '/' {$ENDIF};
   MAX_ICON_PATH_LENGTH = 512;
 
+var
+  // Separate directories for Open and Save dialogs
+  LastOpenDirectory: string = '';
+  LastSaveDirectory: string = '';
+
 // Вспомогательные функции для работы с путями
 function IncludeTrailingPathDelimiter(const Path: string): string;
 begin
@@ -117,8 +136,27 @@ end;
 function ExcludeTrailingPathDelimiter(const Path: string): string;
 begin
   Result := Path;
-  while (Result <> '') and (Result[Length(Result)] = PATH_SEPARATOR) do
+  if (Result = '') then Exit;
+
+  // Не удаляем разделитель, если это корневая директория
+  {$IFDEF LINUX}
+  if Result = '/' then Exit;
+  {$ELSE}
+  // Windows: не трогаем корень диска (напр. "C:\")
+  if (Length(Result) = 3) and (Result[2] = ':') and (Result[3] = PATH_SEPARATOR) then Exit;
+  {$ENDIF}
+
+  while (Result[Length(Result)] = PATH_SEPARATOR) do
     SetLength(Result, Length(Result) - 1);
+end;
+
+function IsRootDirectory(const Path: string): Boolean;
+begin
+  {$IFDEF WINDOWS}
+  Result := (Path <> '') and (ExtractFilePath(Path) = Path);
+  {$ELSE}
+  Result := (Path = '/');
+  {$ENDIF}
 end;
 
 { TCustomFileDialog }
@@ -144,7 +182,7 @@ begin
   FItemFocused := 0;
   FillChar(FFileNameText, SizeOf(FFileNameText), 0);
 
-  FDirPathText := GetWorkingDirectory();
+  FDirPathText := GetUserDir();
   FFileName := '';
   FFilter := '';
   FInitialDir := '';
@@ -176,11 +214,20 @@ begin
 end;
 
 function TCustomFileDialog.Execute: Boolean;
+var
+  LastDir: string;
 begin
+  // Priority: explicit InitialDir > saved last used directory for this dialog type > working directory
   if FInitialDir <> '' then
     FDirPathText := ExpandFileName(FInitialDir)
   else
-    FDirPathText := GetWorkingDirectory();
+  begin
+    LastDir := GetLastUsedDir;
+    if LastDir <> '' then
+      FDirPathText := LastDir
+    else
+      FDirPathText := GetUserDir();
+  end;
 
   FDirPathText := ExcludeTrailingPathDelimiter(FDirPathText);
 
@@ -215,23 +262,21 @@ var
   mousePosition: TVector2;
   guiResult: Integer;
   pathBuffer: array[0..1023] of Char;
-  selectedPath, tempStr, savedFileName: string;
+  selectedPath, savedFileName: string;
   dirFilesIconArray: PPChar;
   i: Integer;
   prevAlignment, prevHeight: Integer;
   btnResult: Integer;
 begin
-  if not FActive then
-    Exit;
+  if not FActive then Exit;
 
   // Window dragging
   mousePosition := GetMousePosition;
-
   if IsMouseButtonPressed(MOUSE_LEFT_BUTTON) then
   begin
     if CheckCollisionPointRec(mousePosition,
-       RectangleCreate(FWindowBounds.x, FWindowBounds.y,
-                      FWindowBounds.width, RAYGUI_WINDOWBOX_STATUSBAR_HEIGHT)) then
+        RectangleCreate(FWindowBounds.x, FWindowBounds.y,
+        FWindowBounds.width, RAYGUI_WINDOWBOX_STATUSBAR_HEIGHT)) then
     begin
       FDragMode := True;
       FPanOffset.x := mousePosition.x - FWindowBounds.x;
@@ -243,45 +288,38 @@ begin
   begin
     FWindowBounds.x := mousePosition.x - FPanOffset.x;
     FWindowBounds.y := mousePosition.y - FPanOffset.y;
-
-    if FWindowBounds.x < 0 then
-      FWindowBounds.x := 0
+    if FWindowBounds.x < 0 then FWindowBounds.x := 0
     else if FWindowBounds.x > (GetScreenWidth - FWindowBounds.width) then
       FWindowBounds.x := GetScreenWidth - FWindowBounds.width;
-
-    if FWindowBounds.y < 0 then
-      FWindowBounds.y := 0
+    if FWindowBounds.y < 0 then FWindowBounds.y := 0
     else if FWindowBounds.y > (GetScreenHeight - FWindowBounds.height) then
       FWindowBounds.y := GetScreenHeight - FWindowBounds.height;
-
-    if IsMouseButtonReleased(MOUSE_LEFT_BUTTON) then
-      FDragMode := False;
+    if IsMouseButtonReleased(MOUSE_LEFT_BUTTON) then FDragMode := False;
   end;
 
   // Load files if needed
-  if FDirFiles.paths = nil then
-    ReloadDirectoryContents;
+  if FDirFiles.paths = nil then ReloadDirectoryContents;
 
   // Draw window
   guiResult := GuiWindowBox(FWindowBounds, PChar(GetDialogTitle));
-  if guiResult <> 0 then
-    Cancel;
+  if guiResult <> 0 then Cancel;
 
   GuiSetStyle(BUTTON, TEXT_ALIGNMENT, TEXT_ALIGN_CENTER);
 
   // Up button
   if GuiButton(RectangleCreate(
-    FWindowBounds.x + FWindowBounds.width - 48,
-    FWindowBounds.y + 24 + 12,
-    40, 24), '< ..') <> 0 then
+      FWindowBounds.x + FWindowBounds.width - 48,
+      FWindowBounds.y + 24 + 12, 40, 24), '< ..') <> 0 then
   begin
     savedFileName := FFileName;
-    tempStr := GetPrevDirectoryPath(FDirPathText);
-    if tempStr <> '' then
-      FDirPathText := ExpandFileName(tempStr)
-    else
-      FDirPathText := GetWorkingDirectory();
-    FDirPathText := ExcludeTrailingPathDelimiter(FDirPathText);
+    {$IFDEF WINDOWS}
+    if FDirPathText = '' then FDirPathText := ''
+    else if IsRootDirectory(FDirPathText) then FDirPathText := ''
+    else FDirPathText := GetPrevDirectoryPath(FDirPathText);
+    {$ELSE}
+    if FDirPathText = '/' then FDirPathText := '/'
+    else FDirPathText := GetPrevDirectoryPath(FDirPathText);
+    {$ENDIF}
     ReloadDirectoryContents;
     FFilesListActive := -1;
     if savedFileName <> '' then
@@ -292,13 +330,17 @@ begin
   end;
 
   // Path text box
-  StrLCopy(pathBuffer, PChar(ExpandFileName(FDirPathText)), SizeOf(pathBuffer) - 1);
+  {$IFDEF WINDOWS}
+  if FDirPathText = '' then StrLCopy(pathBuffer, PChar('My Computer'), SizeOf(pathBuffer) - 1)
+  else StrLCopy(pathBuffer, PChar(FDirPathText), SizeOf(pathBuffer) - 1);
+  {$ELSE}
+  if FDirPathText = '' then StrLCopy(pathBuffer, PChar('/'), SizeOf(pathBuffer) - 1)
+  else StrLCopy(pathBuffer, PChar(FDirPathText), SizeOf(pathBuffer) - 1);
+  {$ENDIF}
 
   if GuiTextBox(RectangleCreate(
-    FWindowBounds.x + 8,
-    FWindowBounds.y + 24 + 12,
-    FWindowBounds.width - 48 - 16,
-    24), pathBuffer, 1024, FDirPathEditMode) <> 0 then
+      FWindowBounds.x + 8, FWindowBounds.y + 24 + 12,
+      FWindowBounds.width - 48 - 16, 24), pathBuffer, 1024, FDirPathEditMode) <> 0 then
   begin
     FDirPathEditMode := not FDirPathEditMode;
     if not FDirPathEditMode then
@@ -306,10 +348,12 @@ begin
       savedFileName := FFileName;
       FDirPathText := ExpandFileName(string(pathBuffer));
       FDirPathText := ExcludeTrailingPathDelimiter(FDirPathText);
-      if DirectoryExists(PChar(FDirPathText)) then
-        ReloadDirectoryContents
+      if (FDirPathText = '') or DirectoryExists(PChar(FDirPathText)) then ReloadDirectoryContents
       else
-        FDirPathText := GetWorkingDirectory();
+      begin
+        {$IFDEF WINDOWS} FDirPathText := ''; {$ELSE} FDirPathText := '/'; {$ENDIF}
+        ReloadDirectoryContents;
+      end;
       if savedFileName <> '' then
       begin
         FFileName := savedFileName;
@@ -321,7 +365,6 @@ begin
   // List view
   prevAlignment := GuiGetStyle(LISTVIEW, TEXT_ALIGNMENT);
   prevHeight := GuiGetStyle(LISTVIEW, LIST_ITEMS_HEIGHT);
-
   GuiSetStyle(LISTVIEW, TEXT_ALIGNMENT, TEXT_ALIGN_LEFT);
   GuiSetStyle(LISTVIEW, LIST_ITEMS_HEIGHT, 24);
 
@@ -329,19 +372,12 @@ begin
   begin
     GetMem(dirFilesIconArray, SizeOf(PChar) * FDirFiles.count);
     try
-      for i := 0 to FDirFiles.count - 1 do
-        dirFilesIconArray[i] := FDirFilesIcon[i];
-
+      for i := 0 to FDirFiles.count - 1 do dirFilesIconArray[i] := FDirFilesIcon[i];
       GuiListViewEx(RectangleCreate(
-        FWindowBounds.x + 8,
-        FWindowBounds.y + 48 + 20,
-        FWindowBounds.width - 16,
-        FWindowBounds.height - 60 - 16 - 68),
-        dirFilesIconArray,
-        FDirFiles.count,
-        @FFilesListScrollIndex,
-        @FFilesListActive,
-        @FItemFocused);
+          FWindowBounds.x + 8, FWindowBounds.y + 48 + 20,
+          FWindowBounds.width - 16, FWindowBounds.height - 60 - 16 - 68),
+          dirFilesIconArray, FDirFiles.count,
+          @FFilesListScrollIndex, @FFilesListActive, @FItemFocused);
     finally
       FreeMem(dirFilesIconArray);
     end;
@@ -350,7 +386,7 @@ begin
   GuiSetStyle(LISTVIEW, TEXT_ALIGNMENT, prevAlignment);
   GuiSetStyle(LISTVIEW, LIST_ITEMS_HEIGHT, prevHeight);
 
-  // Handle selection - ИСПРАВЛЕНО
+  // Handle selection
   if (FFilesListActive >= 0) and (FFilesListActive <> FPrevFilesListActive) then
   begin
     if (FFilesListActive < FDirFiles.count) then
@@ -364,16 +400,36 @@ begin
         FFileName := string(FFileNameText);
       end;
 
-      // Если это директория - переходим в нее
-      if DirectoryExists(PChar(selectedPath)) then
+      // <-- ИЗМЕНЕНИЕ: ловим клик по '..' или реальной директории
+      if DirectoryExists(PChar(selectedPath)) or (ExtractFileName(selectedPath) = '..') then
       begin
         savedFileName := FFileName;
 
-        // ИСПРАВЛЕНО: используем полный путь из selectedPath
         if ExtractFileName(selectedPath) = '..' then
-          FDirPathText := GetPrevDirectoryPath(FDirPathText)
+        begin
+          // Переход на уровень вверх / к списку дисков
+          {$IFDEF WINDOWS}
+          if IsRootDirectory(FDirPathText) then
+            FDirPathText := ''  // Выходим в "Мой компьютер"
+          else
+            FDirPathText := GetPrevDirectoryPath(FDirPathText);
+          {$ELSE}
+          if FDirPathText <> '/' then
+            FDirPathText := GetPrevDirectoryPath(FDirPathText);
+          {$ENDIF}
+        end
         else
+        begin
+          // Переход в выбранную директорию
+          {$IFDEF WINDOWS}
+          if (FDirPathText = '') then
+            FDirPathText := selectedPath + '\' // Выбран диск из списка
+          else
+            FDirPathText := ExcludeTrailingPathDelimiter(ExpandFileName(selectedPath));
+          {$ELSE}
           FDirPathText := ExcludeTrailingPathDelimiter(ExpandFileName(selectedPath));
+          {$ENDIF}
+        end;
 
         ReloadDirectoryContents;
         FFilesListActive := -1;
@@ -389,32 +445,22 @@ begin
 
   // File name input
   GuiLabel(RectangleCreate(
-    FWindowBounds.x + 8,
-    FWindowBounds.y + FWindowBounds.height - 68,
-    60, 24), 'File name:');
-
+      FWindowBounds.x + 8, FWindowBounds.y + FWindowBounds.height - 68, 60, 24), 'File name:');
   if GuiTextBox(RectangleCreate(
-    FWindowBounds.x + 72,
-    FWindowBounds.y + FWindowBounds.height - 68,
-    FWindowBounds.width - 184,
-    24), FFileNameText, SizeOf(FFileNameText) - 1, FFileNameEditMode) <> 0 then
+      FWindowBounds.x + 72, FWindowBounds.y + FWindowBounds.height - 68,
+      FWindowBounds.width - 184, 24), FFileNameText, SizeOf(FFileNameText) - 1, FFileNameEditMode) <> 0 then
   begin
     FFileNameEditMode := not FFileNameEditMode;
-    if not FFileNameEditMode then
-      FFileName := string(FFileNameText);
+    if not FFileNameEditMode then FFileName := string(FFileNameText);
   end;
 
   // Action button
   btnResult := GuiButton(RectangleCreate(
-    FWindowBounds.x + FWindowBounds.width - 96 - 8,
-    FWindowBounds.y + FWindowBounds.height - 68,
-    96, 24), PChar(GetActionButtonText));
-
+      FWindowBounds.x + FWindowBounds.width - 96 - 8,
+      FWindowBounds.y + FWindowBounds.height - 68, 96, 24), PChar(GetActionButtonText));
   if btnResult <> 0 then
   begin
-    if FFileNameEditMode then
-      FFileName := string(FFileNameText);
-
+    if FFileNameEditMode then FFileName := string(FFileNameText);
     if ValidateBeforeClose then
     begin
       OnFileSelected(IncludeTrailingPathDelimiter(FDirPathText) + FFileName);
@@ -424,10 +470,8 @@ begin
 
   // Cancel button
   if GuiButton(RectangleCreate(
-    FWindowBounds.x + FWindowBounds.width - 96 - 8,
-    FWindowBounds.y + FWindowBounds.height - 24 - 12,
-    96, 24), 'Cancel') <> 0 then
-    Cancel;
+      FWindowBounds.x + FWindowBounds.width - 96 - 8,
+      FWindowBounds.y + FWindowBounds.height - 24 - 12, 96, 24), 'Cancel') <> 0 then Cancel;
 end;
 
 procedure TCustomFileDialog.Close;
@@ -473,14 +517,11 @@ begin
     FreeMem(FDirFiles.paths);
     FDirFiles.paths := nil;
   end;
-
   FreeIcons;
 
   // Load directories and files
   LoadDirectoryContents;
-
   totalItems := FDirectories.Count + FFiles.Count;
-
   if totalItems = 0 then
   begin
     FDirFiles.count := 0;
@@ -503,20 +544,32 @@ begin
   for i := 0 to FDirectories.Count - 1 do
   begin
     dirName := FDirectories[i];
-
-    // ИСПРАВЛЕНО: правильное формирование пути
+    // Формирование полного пути
+    {$IFDEF WINDOWS}
+    if FDirPathText = '' then
+      fullPath := dirName  // Для дисков в списке
+    else if dirName = '..' then
+    begin
+      // <-- ИСПРАВЛЕНИЕ: явно ставим '..', чтобы в Update сработала проверка
+      if IsRootDirectory(FDirPathText) then
+        fullPath := '..'
+      else
+        fullPath := GetPrevDirectoryPath(FDirPathText);
+    end
+    else
+      fullPath := IncludeTrailingPathDelimiter(FDirPathText) + dirName;
+    {$ELSE}
     if dirName = '..' then
       fullPath := GetPrevDirectoryPath(FDirPathText)
     else
       fullPath := IncludeTrailingPathDelimiter(FDirPathText) + dirName;
+    {$ENDIF}
 
     FDirFiles.paths[i] := StrNew(PChar(fullPath));
-
     if dirName = '..' then
       iconText := '#1# ' + dirName
     else
       iconText := '#1# ' + dirName;
-
     StrLCopy(FDirFilesIcon[i], PChar(iconText), MAX_ICON_PATH_LENGTH - 1);
   end;
 
@@ -524,16 +577,21 @@ begin
   for i := 0 to FFiles.Count - 1 do
   begin
     fileNameItem := FFiles[i];
+    {$IFDEF WINDOWS}
+    if FDirPathText = '' then
+      fullPath := fileNameItem
+    else
+      fullPath := IncludeTrailingPathDelimiter(FDirPathText) + fileNameItem;
+    {$ELSE}
     fullPath := IncludeTrailingPathDelimiter(FDirPathText) + fileNameItem;
+    {$ENDIF}
     FDirFiles.paths[FDirectories.Count + i] := StrNew(PChar(fullPath));
-
     if IsFileExtension(PChar(fileNameItem), '.ay;.ayc;.sqt;.stc;.pt1;.pt2;.pt3;.asc;.psg;.stp;.psc;.vtx;.sng;.sap;.str;.sid;.dmm;.pld;.cop;.mp3;.xm;.mod;.it;.s3m;.m') then
       iconText := '#11# ' + fileNameItem
     else if IsFileExtension(PChar(fileNameItem), '.txt;.md;.nfo;.xml;.json') then
       iconText := '#10# ' + fileNameItem
     else
       iconText := '#218# ' + fileNameItem;
-
     StrLCopy(FDirFilesIcon[FDirectories.Count + i], PChar(iconText), MAX_ICON_PATH_LENGTH - 1);
   end;
 
@@ -548,7 +606,9 @@ begin
     StrLCopy(FFileNameText, PChar(ExtractFileName(savedFileName)), SizeOf(FFileNameText) - 1);
   end;
 
-
+  // Save current directory for this dialog type
+  if FDirPathText <> '' then
+    SetLastUsedDir(FDirPathText);
 end;
 
 procedure TCustomFileDialog.FreeIcons;
@@ -562,24 +622,30 @@ begin
 end;
 
 function TCustomFileDialog.GetPrevDirectoryPath(const DirPath: string): string;
-var
-  NormalizedPath: string;
 begin
-  NormalizedPath := ExcludeTrailingPathDelimiter(DirPath);
-
-  if NormalizedPath = '' then
-    Result := ExtractFileDrive(DirPath)
+  {$IFDEF WINDOWS}
+  // Windows: на уровень выше
+  if DirPath = '' then
+    Result := ''  // Список дисков, выше нельзя
   else
-    Result := ExtractFilePath(NormalizedPath);
+   if IsRootDirectory(DirPath) then
+   begin
 
-  // Удаляем завершающий разделитель для корня
-  if (Result = PATH_SEPARATOR) or (Result = ExtractFileDrive(DirPath) + PATH_SEPARATOR) then
-    Result := ExcludeTrailingPathDelimiter(Result);
-
-  if Result = '' then
-    Result := ExtractFileDrive(DirPath);
-
-  Result := ExcludeTrailingPathDelimiter(Result);
+    Result := '';  // Из корня диска - к списку дисков
+   end
+  else
+    Result := ExcludeTrailingPathDelimiter(ExtractFilePath(DirPath));
+  {$ELSE}
+  // Linux: просто на уровень выше
+  if DirPath = '/' then
+    Result := '/'
+  else
+  begin
+    Result := ExcludeTrailingPathDelimiter(ExtractFilePath(DirPath));
+    if Result = '' then
+      Result := '/';
+  end;
+  {$ENDIF}
 end;
 
 procedure TCustomFileDialog.LoadDirectoryContents;
@@ -592,52 +658,100 @@ begin
   FDirectories.Clear;
   FFiles.Clear;
 
-  // Используем нормализованный путь
-  FDirPathText := ExpandFileName(FDirPathText);
-  FDirPathText := ExcludeTrailingPathDelimiter(FDirPathText);
-
-  // Add parent directory
-  if (FDirPathText <> '') and
-     (FDirPathText <> ExtractFileDrive(FDirPathText)) and
-     (ExtractFilePath(FDirPathText) <> FDirPathText) then
+  {$IFDEF WINDOWS}
+  // Специальная обработка для списка дисков Windows
+  if FDirPathText = '' then
   begin
-    FDirectories.Add('..');
+    LoadDrivesList;
+    Exit;
+  end;
+  {$ENDIF}
+
+  // Нормализация пути
+  if FDirPathText <> '' then
+  begin
+    FDirPathText := ExpandFileName(FDirPathText);
+    FDirPathText := ExcludeTrailingPathDelimiter(FDirPathText);
   end;
 
-  searchPath := IncludeTrailingPathDelimiter(FDirPathText) + '*';
-  searchResult := FindFirst(searchPath, faDirectory or faAnyFile, searchRec);
+  // Добавляем родительскую директорию (..)
+  {$IFDEF WINDOWS}
+  // Windows: добавляем '..' если не в списке дисков
+  if FDirPathText <> '' then
+    FDirectories.Add('..');
+  {$ELSE}
+  // Linux: добавляем '..' если не в корне
+  if (FDirPathText <> '') and (FDirPathText <> '/') then
+    FDirectories.Add('..');
+  {$ENDIF}
 
-  try
-    while searchResult = 0 do
-    begin
-      itemName := searchRec.Name;
+  // Сканируем директорию
+  if FDirPathText <> '' then
+  begin
+    {$IFDEF WINDOWS}
+    searchPath := IncludeTrailingPathDelimiter(FDirPathText) + '*';
+    {$ELSE}
+    // Linux: для корня используем '/*', иначе 'путь/*'
+    if FDirPathText = '/' then
+      searchPath := '/*'
+    else
+      searchPath := IncludeTrailingPathDelimiter(FDirPathText) + '*';
+    {$ENDIF}
 
-      if (itemName = '.') then
+    searchResult := FindFirst(searchPath, faDirectory or faAnyFile, searchRec);
+
+    try
+      while searchResult = 0 do
       begin
-        searchResult := FindNext(searchRec);
-        Continue;
-      end;
+        itemName := searchRec.Name;
 
-      if ((searchRec.Attr and faDirectory) <> 0) and ((searchRec.Attr and faHidden) = 0) then
-      begin
-        if itemName <> '..' then
+        if (itemName = '.') or (itemName = '..') then
+        begin
+          searchResult := FindNext(searchRec);
+          Continue;
+        end;
+
+        if ((searchRec.Attr and faDirectory) <> 0) and ((searchRec.Attr and faHidden) = 0) then
+        begin
           FDirectories.Add(itemName);
-      end
-      else if (searchRec.Attr and faHidden) = 0 then
-      begin
-        if (FFilter = '') or (Pos(LowerCase(FFilter), LowerCase(itemName)) > 0) then
-          FFiles.Add(itemName);
-      end;
+        end
+        else if (searchRec.Attr and faHidden) = 0 then
+        begin
+          if (FFilter = '') or (Pos(LowerCase(FFilter), LowerCase(itemName)) > 0) then
+            FFiles.Add(itemName);
+        end;
 
-      searchResult := FindNext(searchRec);
+        searchResult := FindNext(searchRec);
+      end;
+    finally
+      FindClose(searchRec);
     end;
-  finally
-    FindClose(searchRec);
   end;
 
   FDirectories.Sort;
   FFiles.Sort;
 end;
+
+{$IFDEF WINDOWS}
+procedure TCustomFileDialog.LoadDrivesList;
+var
+  i: Integer;
+  driveLetter: string;
+begin
+  FDirectories.Clear;
+  FFiles.Clear;
+
+  // Получаем список всех доступных дисков
+  for i := 0 to 25 do
+  begin
+    driveLetter := Chr(Ord('A') + i) + ':';
+    if DirectoryExists(PAnsiChar(driveLetter + '\')) then
+      FDirectories.Add(driveLetter);
+  end;
+
+  FDirectories.Sort;
+end;
+{$ENDIF}
 
 procedure TCustomFileDialog.UpdateWindowTitle;
 var
@@ -659,7 +773,11 @@ end;
 
 procedure TCustomFileDialog.OnFileSelected(const FilePath: string);
 begin
-  // Can be overridden by descendants
+  // Save the directory of selected file for this dialog type
+  if FilePath <> '' then
+  begin
+    SetLastUsedDir(ExcludeTrailingPathDelimiter(ExtractFilePath(FilePath)));
+  end;
 end;
 
 { TOpenDialog }
@@ -694,11 +812,23 @@ end;
 procedure TOpenDialog.OnFileSelected(const FilePath: string);
 begin
   FFileName := FilePath;
+  inherited OnFileSelected(FilePath);
 end;
 
 procedure TOpenDialog.CancelDialog;
 begin
   inherited CancelDialog;
+end;
+
+function TOpenDialog.GetLastUsedDir: string;
+begin
+  Result := LastOpenDirectory;
+end;
+
+procedure TOpenDialog.SetLastUsedDir(const Dir: string);
+begin
+  if Dir <> '' then
+    LastOpenDirectory := Dir;
 end;
 
 { TSaveDialog }
@@ -750,6 +880,7 @@ end;
 procedure TSaveDialog.OnFileSelected(const FilePath: string);
 begin
   FFileName := FilePath;
+  inherited OnFileSelected(FilePath);
 end;
 
 procedure TSaveDialog.CancelDialog;
@@ -846,6 +977,17 @@ begin
     Result := True
   else
     Result := inherited IsActive;
+end;
+
+function TSaveDialog.GetLastUsedDir: string;
+begin
+  Result := LastSaveDirectory;
+end;
+
+procedure TSaveDialog.SetLastUsedDir(const Dir: string);
+begin
+  if Dir <> '' then
+    LastSaveDirectory := Dir;
 end;
 
 end.

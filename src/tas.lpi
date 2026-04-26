@@ -95,8 +95,14 @@
     </SearchPaths>
     <Linking>
       <Debugging>
+        <GenerateDebugInfo Value="False"/>
         <DebugInfoType Value="dsDwarf3"/>
       </Debugging>
+      <Options>
+        <Win32>
+          <GraphicApplication Value="True"/>
+        </Win32>
+      </Options>
     </Linking>
     <Other>
       <CustomOptions Value="-k&quot;-rpath=\$ORIGIN&quot;"/>

@@ -6,7 +6,7 @@ uses
   {$IFDEF LINUX} cthreads,{$ENDIF}
   Classes, CustApp, raylib, raygui, SysUtils, trdos_reader, ctypes, math,
   libzxtune, playerUi, TuneZXPlayer, SpectrumPanel, Toolbar, rayfiledialog,
-  fontTools, extratools, gui_window_about;
+  fontTools, extratools, gui_window_about, IniFiles;
 
 const
   SCREEN_WIDTH = 640;
@@ -88,6 +88,8 @@ type
     procedure OnToolbarAboutClick(Sender: TObject);
 
   public
+    procedure SaveSetting;
+    procedure LoadSetting;
     constructor Create(TheOwner: TComponent); override;
     destructor Destroy; override;
   end;
@@ -136,20 +138,20 @@ begin
   // Создание диалогов
   FOpenDialog := TOpenDialog.Create;
   FOpenDialog.Filter := '.trd';
-  FOpenDialog.InitialDir := GetWorkingDirectory();
+ // FOpenDialog.InitialDir := GetWorkingDirectory();
 
   FSaveDialog := TSaveDialog.Create;
   FSaveDialog.Filter := '.trd';
-  FSaveDialog.InitialDir := GetWorkingDirectory();
+ // FSaveDialog.InitialDir := GetWorkingDirectory();
   FSaveDialog.FileName := 'newdisk.trd';
 
   FExportDialog := TSaveDialog.Create;
   FExportDialog.Filter := '';
-  FExportDialog.InitialDir := GetWorkingDirectory();
+  //FExportDialog.InitialDir := GetWorkingDirectory();
 
   FAddFileDialog := TOpenDialog.Create;
   FAddFileDialog.Filter := '';
-  FAddFileDialog.InitialDir := GetWorkingDirectory();
+ // FAddFileDialog.InitialDir := GetWorkingDirectory();
 
   InfoPanel := TInfoPanel.Create;
   ModuleInfoPanel := TModuleInfoPanel.Create;
@@ -195,14 +197,14 @@ begin
   FaboutState.supportDrag := True; // Опционально
   FaboutState.ImageLogo := LoadTextureFromImage(MyIcon);
   UnloadImage(MyIcon);
-  ApplyStyleIndex(0);
+  LoadSetting;
 
 end;
 
 destructor TRayApplication.Destroy;
 begin
   StopPlayback;
-
+  SaveSetting;
   FOpenDialog.Free;
   FSaveDialog.Free;
   FExportDialog.Free;
@@ -216,6 +218,7 @@ begin
   FPlayer.Free;
   FReader.Free;
   UnloadFont(SpeccyFont);
+
   CloseWindow();
   inherited Destroy;
 end;
@@ -249,7 +252,7 @@ begin
   else
     ExtFile := LowerCase(FPlayer.CurrentModuleType);
 
-  OutputFileName := TmpFile + '.' + ExtFile;
+  OutputFileName := SanitizeFileName(TmpFile + '.' + ExtFile);
 
   FExportDialog.FileName := OutputFileName;
   FExportDialog.Execute;
@@ -370,6 +373,39 @@ end;
 procedure TRayApplication.OnToolbarAboutClick(Sender: TObject);
 begin
   FAboutState.windowActive := true;
+end;
+
+procedure TRayApplication.SaveSetting;
+var
+  MyIni: TIniFile;
+begin
+  // Create object (creates the file if it doesn't exist)
+  MyIni := TIniFile.Create('data/config.ini');
+  try
+//    MyIni.WriteString('General', 'Username', 'JohnDoe');
+    MyIni.WriteInteger('General', 'StyleIndex', fToolbar.GetColorThemeIndex);
+//    MyIni.WriteBool('Window', 'Maximized', True);
+  finally
+    MyIni.Free; // Always free memory
+  end;
+end;
+
+procedure TRayApplication.LoadSetting;
+var
+  MyIni: TIniFile;
+//  User: string;
+  I: Integer;
+begin
+  MyIni := TIniFile.Create('data/config.ini');
+  try
+    // ReadString('Section', 'Key', 'DefaultValue')
+   // User := MyIni.ReadString('General', 'Username', 'Guest');
+    i := MyIni.ReadInteger('General', 'StyleIndex', 0);
+    ApplyStyleIndex(I);
+   Ftoolbar.SetColorThemeIndex(I);
+  finally
+    MyIni.Free;
+  end;
 end;
 
 procedure TRayApplication.OnFileSelected(Sender: TObject);
@@ -571,7 +607,7 @@ begin
     FPlayer.Stop;
   FileListView.PlayLabelIndex := -1;
 end;
-
+{
 procedure TRayApplication.HandleFileDrop;
 var
   droppedFiles: TFilePathList;
@@ -591,6 +627,119 @@ begin
       else
         FStatusMessage := 'Please drop a .trd file';
     end;
+    UnloadDroppedFiles(droppedFiles);
+  end;
+end;  }
+
+
+procedure TRayApplication.HandleFileDrop;
+var
+  droppedFiles: TFilePathList;
+  NormalizedPath: string;
+  i: Integer;
+  LoadAddr, CodeSize: Word;
+  DetectedFileType: Char;
+  FileName, ShortName: string;
+begin
+  if IsFileDropped() then
+  begin
+    droppedFiles := LoadDroppedFiles();
+
+    // Single file dropped
+    if droppedFiles.count = 1 then
+    begin
+      NormalizedPath := ExpandFileName(droppedFiles.paths[0]);
+      NormalizedPath := StringReplace(NormalizedPath, '//', '/', [rfReplaceAll]);
+
+      if IsFileExtension(PAnsiChar(NormalizedPath), '.trd') then
+        LoadDiskImage(NormalizedPath)  // Load disk image
+      else if FReader.IsLoaded then
+      begin
+        // Try to add file to current disk
+        if DetectFileTypeAndParams(NormalizedPath, LoadAddr, CodeSize, DetectedFileType) then
+        begin
+          FileName := ChangeFileExt(ExtractFileName(NormalizedPath), '');
+          ShortName := ShortenFileName(FileName, 8);
+
+          if FReader.AddFileFromFile(ShortName, DetectedFileType, LoadAddr, CodeSize, NormalizedPath, 0) then
+          begin
+            if FReader.SaveToCurrentFile then
+            begin
+              FStatusMessage := Format('Added: %s -> %s.%s (Load:$%X, Size:%d)',
+                [ExtractFileName(NormalizedPath), ShortName, DetectedFileType, LoadAddr, CodeSize]);
+              FileListView.Refresh;
+              FToolbar.DriveIsFull := (FReader.GetFreeSectorsCount = 0);
+            end
+            else
+              FStatusMessage := 'File added but failed to save disk: ' + FReader.ErrorMessage;
+          end
+          else
+            FStatusMessage := 'Failed to add file: ' + FReader.ErrorMessage;
+        end
+        else
+        begin
+          FStatusMessage := 'Unsupported file format: ' + ExtractFileName(NormalizedPath) +
+                           ' (Supported: .pt1/2/3, .stc, .asc, .ay, etc.)';
+        end;
+      end
+      else
+        FStatusMessage := 'First load a .trd disk image, or drop a .trd file';
+    end
+
+    // Multiple files dropped - works only if disk is loaded
+    else if droppedFiles.count > 1 then
+    begin
+      if not FReader.IsLoaded then
+      begin
+        FStatusMessage := Format('First load a disk image (%d files dropped)', [droppedFiles.count]);
+        UnloadDroppedFiles(droppedFiles);
+        Exit;
+      end;
+
+      FStatusMessage := Format('Adding %d files...', [droppedFiles.count]);
+
+      for i := 0 to droppedFiles.count - 1 do
+      begin
+        NormalizedPath := ExpandFileName(droppedFiles.paths[i]);
+        NormalizedPath := StringReplace(NormalizedPath, '//', '/', [rfReplaceAll]);
+
+        // Skip .trd files when adding multiple files
+        if IsFileExtension(PAnsiChar(NormalizedPath), '.trd') then
+          Continue;
+
+        if DetectFileTypeAndParams(NormalizedPath, LoadAddr, CodeSize, DetectedFileType) then
+        begin
+          FileName := ChangeFileExt(ExtractFileName(NormalizedPath), '');
+          ShortName := ShortenFileName(FileName, 8);
+
+          // Try to add, if name already exists - rename it
+          if not FReader.AddFileFromFile(ShortName, DetectedFileType, LoadAddr, CodeSize, NormalizedPath, 0) then
+          begin
+            // Alternative name with index
+            ShortName := ShortenFileName(FileName + '_' + IntToStr(i), 8);
+            if FReader.AddFileFromFile(ShortName, DetectedFileType, LoadAddr, CodeSize, NormalizedPath, 0) then
+              FStatusMessage := Format('Added: %s -> %s.%s', [ExtractFileName(NormalizedPath), ShortName, DetectedFileType])
+            else
+              FStatusMessage := Format('Error adding: %s', [ExtractFileName(NormalizedPath)]);
+          end
+          else
+            FStatusMessage := Format('Added: %s -> %s.%s', [ExtractFileName(NormalizedPath), ShortName, DetectedFileType]);
+        end
+        else
+          FStatusMessage := Format('Skipped (unsupported format): %s', [ExtractFileName(NormalizedPath)]);
+      end;
+
+      // Save disk after adding all files
+      if FReader.SaveToCurrentFile then
+      begin
+        FStatusMessage := Format('Added %d files to disk', [droppedFiles.count]);
+        FileListView.Refresh;
+        FToolbar.DriveIsFull := (FReader.GetFreeSectorsCount = 0);
+      end
+      else
+        FStatusMessage := 'Files added but failed to save disk: ' + FReader.ErrorMessage;
+    end;
+
     UnloadDroppedFiles(droppedFiles);
   end;
 end;

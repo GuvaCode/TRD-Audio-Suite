@@ -15,6 +15,7 @@ function ShortenFileName(const Input: string; MaxLength: Integer = 8): string;
 function DetectFileTypeAndParams(const FileName: string; out LoadAddr, CodeSize: Word; out FileType: Char): Boolean;
 function CreateTechIconLogoImageWithText(size: Integer; const text: PChar;
   textSize: Integer; zxLogo: Boolean; color: TColorB): TImage;
+function SanitizeFileName(const FileName: string): string;
 // Shader functions
 //procedure InitLoadingShader;
 //procedure UninitLoadingShader;
@@ -617,6 +618,26 @@ begin
   end;
 
   Result := img;
+end;
+
+
+
+// Реализация
+function SanitizeFileName(const FileName: string): string;
+const
+  InvalidChars: set of Char = ['<', '>', ':', '"', '/', '\', '|', '?', '*'];
+var
+  i: Integer;
+begin
+  Result := FileName;
+  for i := 1 to Length(Result) do
+  begin
+    if Result[i] in InvalidChars then
+      Result[i] := '_';
+  end;
+  Result := Trim(Result);
+  if Result = '' then
+    Result := 'untitled';
 end;
 
 end.
