@@ -12,6 +12,7 @@
       <Title Value="tas"/>
       <UseAppBundle Value="False"/>
       <ResourceType Value="res"/>
+      <Icon Value="0"/>
     </General>
     <BuildModes>
       <Item Name="Default" Default="True"/>
@@ -72,6 +73,10 @@
       </Unit>
       <Unit>
         <Filename Value="extratools.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="gui_window_about.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit>
     </Units>

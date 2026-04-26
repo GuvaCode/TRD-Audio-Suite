@@ -6,7 +6,7 @@ uses
   {$IFDEF LINUX} cthreads,{$ENDIF}
   Classes, CustApp, raylib, raygui, SysUtils, trdos_reader, ctypes, math,
   libzxtune, playerUi, TuneZXPlayer, SpectrumPanel, Toolbar, rayfiledialog,
-  fontTools, extratools;
+  fontTools, extratools, gui_window_about;
 
 const
   SCREEN_WIDTH = 640;
@@ -41,6 +41,7 @@ type
     procedure OnPlayerProgressChanged(Sender: TObject);
     procedure OnPlayerTrackEnd(Sender: TObject);
     procedure OnFileSelected(Sender: TObject);
+    procedure ApplyStyleIndex(StyleIndex: Integer);
   private
     // Gui
     InfoPanel: TInfoPanel;
@@ -67,8 +68,8 @@ type
     FPlayer: TZXTunePlayer;
     FSelectedFileInfo: TFileInfo;
     FAutoAdvance: boolean;
-
-
+    FShuffle: boolean;
+    FAboutState: TGuiWindowAboutState;
 
     // Toolbar handlers
     procedure OnToolbarOpenClick(Sender: TObject);
@@ -79,9 +80,13 @@ type
     procedure OnToolbarStopClick(Sender: TObject);
     procedure OnToolbarNextClick(Sender: TObject);
     procedure OnToolbarLoopClick(Sender: TObject);
+    procedure OnToolbarShuffleClick(Sender: TObject);
     procedure OnToolbarNewDriveClick(Sender: TObject);
     procedure OnToolbarAddFileClick(Sender: TObject);
     procedure OnToolbarDeleteFileClick(Sender: TObject);
+    procedure OnToolbarColorThemeClick(Sender: TObject);
+    procedure OnToolbarAboutClick(Sender: TObject);
+
   public
     constructor Create(TheOwner: TComponent); override;
     destructor Destroy; override;
@@ -95,17 +100,19 @@ constructor TRayApplication.Create(TheOwner: TComponent);
 var MyIcon: TImage;
 begin
   inherited Create(TheOwner);
-  InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, 'TRD Audio Suite');
+  InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, 'TR-DOS Audio Suite');
   SetWindowState(FLAG_WINDOW_ALWAYS_RUN or FLAG_WINDOW_RESIZABLE or FLAG_WINDOW_HIGHDPI or FLAG_VSYNC_HINT);
   SetWindowMinSize(SCREEN_WIDTH, SCREEN_HEIGHT);
   MyIcon := LoadImage('data/icon.png');
   SetWindowIcon(MyIcon);
- // SetTargetFPS(60);
 
 
-  GuiLoadStyleDefault();
-  GuiSetFont(LoadUnicodeFont('data/2a03_memesbruh03.ttf', 16, TEXTURE_FILTER_POINT));
-  GuiSetStyle(DEFAULT, TEXT_SIZE, 16);
+
+
+
+ // GuiLoadStyleDefault();
+ // GuiSetFont(LoadUnicodeFont('data/2a03_memesbruh03.ttf', 16, TEXTURE_FILTER_POINT));
+ // GuiSetStyle(DEFAULT, TEXT_SIZE, 16);
 
   SpeccyFont := LoadFont('data/ZXSpectrum.ttf');
 
@@ -113,12 +120,15 @@ begin
   FStatusMessage := 'The disk image is not loaded. Open or Drag the *.trd file here.';
   FCurrentFileName := '';
   FAutoAdvance := False;
+  FShuffle := False;
+
   FillChar(FSelectedFileInfo, SizeOf(TFileInfo), 0);
 
   FPlayer := TZXTunePlayer.Create;
   FPlayer.OnStateChanged := @OnPlayerStateChanged;
   FPlayer.OnProgressChanged := @OnPlayerProgressChanged;
   FPlayer.OnTrackEnd := @OnPlayerTrackEnd;
+
 
   if not FPlayer.IsInitialized then
     FStatusMessage := 'Failed to initialize ZXTune or audio system';
@@ -174,9 +184,19 @@ begin
   FToolbar.OnStopClick := @OnToolbarStopClick;
   FToolbar.OnNextClick := @OnToolbarNextClick;
   FToolbar.OnLoopClick := @OnToolbarLoopClick;
+  FToolbar.OnShuffleClick:= @OnToolbarShuffleClick;
   FToolbar.OnNewDriveClick := @OnToolbarNewDriveClick;
   FToolbar.OnAddFileClick := @OnToolbarAddFileClick;
   FToolbar.OnDeleteFileClick := @OnToolbarDeleteFileClick;
+  FToolbar.OnColorThemeChange:= @OnToolbarColorThemeClick;
+  FToolbar.OnAboutClick:=@OnToolbarAboutClick;
+
+  FaboutState := InitGuiWindowAbout;
+  FaboutState.supportDrag := True; // Опционально
+  FaboutState.ImageLogo := LoadTextureFromImage(MyIcon);
+  UnloadImage(MyIcon);
+  ApplyStyleIndex(0);
+
 end;
 
 destructor TRayApplication.Destroy;
@@ -268,7 +288,24 @@ end;
 
 procedure TRayApplication.OnToolbarLoopClick(Sender: TObject);
 begin
-  FPlayer.LoopMode := Ftoolbar.IsLoopEnabled;
+  If FToolbar.IsShuffleEnabled then
+  begin
+    FToolbar.SetShuffle(False);
+    FShuffle := False;
+  end;
+  FPLayer.LoopMode := not FPLayer.LoopMode ;
+
+end;
+
+procedure TRayApplication.OnToolbarShuffleClick(Sender: TObject);
+begin
+  If FToolbar.IsLoopEnabled then
+  begin
+    FToolbar.SetLoopEnabled(False);
+    FPlayer.LoopMode:=False;
+  end;
+  FShuffle := FToolbar.IsShuffleEnabled;
+
 
 end;
 
@@ -325,10 +362,38 @@ begin
     FStatusMessage := 'Delete failed: ' + FReader.ErrorMessage;
 end;
 
+procedure TRayApplication.OnToolbarColorThemeClick(Sender: TObject);
+begin
+  ApplyStyleIndex(FToolbar.GetColorThemeIndex);
+end;
+
+procedure TRayApplication.OnToolbarAboutClick(Sender: TObject);
+begin
+  FAboutState.windowActive := true;
+end;
+
 procedure TRayApplication.OnFileSelected(Sender: TObject);
 begin
   if FileListView.ActiveIndex >= 0 then
     PlaySelectedFile;
+end;
+
+procedure TRayApplication.ApplyStyleIndex(StyleIndex: Integer);
+begin
+ case StyleIndex of
+   0: GuiLoadStyleDefault;
+   1: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_amber.rgs'));
+   2: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_ashes.rgs'));
+   3: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_cyber.rgs'));
+   4: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_dark.rgs'));
+   5: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_genesis.rgs'));
+   6: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_jungle.rgs'));
+ end;
+   GuiSetFont(LoadUnicodeFont('data/2a03_memesbruh03.ttf', 16, TEXTURE_FILTER_POINT));
+   GuiSetStyle(DEFAULT, TEXT_SIZE, 16);
+   SpectrumPanel.Visualizer.BackgroundColor := GetColor(GuiGetStyle(DEFAULT, BACKGROUND_COLOR));
+   SpectrumPanel.Visualizer.LabelColor := GetColor(GuiGetStyle(DEFAULT, TEXT_COLOR_NORMAL));
+   GuiSetStyle(BUTTON, BORDER_WIDTH, 1);
 end;
 
 procedure TRayApplication.ExportFileToPath(const FilePath: string);
@@ -391,7 +456,10 @@ procedure TRayApplication.PlayNextFile;
 begin
   if (FReader.FileCount > 0) and (FileListView.ActiveIndex < FReader.FileCount - 1) then
   begin
-    FileListView.ActiveIndex := FileListView.ActiveIndex + 1;
+    if FShuffle then
+      FileListView.ActiveIndex := GetRandomValue(1, FReader.FileCount - 1)
+    else
+      FileListView.ActiveIndex := FileListView.ActiveIndex + 1;
     PlaySelectedFile;
   end
   else if (FReader.FileCount > 0) and (FileListView.ActiveIndex = FReader.FileCount - 1) then
@@ -574,7 +642,8 @@ begin
 
   // Блокируем GUI если активен любой диалог
   if FOpenDialog.IsActive or FSaveDialog.IsActive or
-     FExportDialog.IsActive or FAddFileDialog.IsActive then
+     FExportDialog.IsActive or FAddFileDialog.IsActive or
+     FAboutState.windowActive then
     GuiLock
   else
     GuiUnLock;
@@ -794,6 +863,12 @@ begin
     GuiLock;
   end;
 
+  if FaboutState.windowActive then
+  begin
+    guiUnlock;
+    GuiWindowAbout(FaboutState);
+    guiLock;
+  end;
 end;
 
 procedure TRayApplication.DoRun;

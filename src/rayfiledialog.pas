@@ -1,7 +1,7 @@
 unit rayfiledialog;
 
 {$mode objfpc}{$H+}
-
+{$WARN 5044 off : Symbol "$1" is not portable}
 interface
 
 uses
@@ -527,7 +527,7 @@ begin
     fullPath := IncludeTrailingPathDelimiter(FDirPathText) + fileNameItem;
     FDirFiles.paths[FDirectories.Count + i] := StrNew(PChar(fullPath));
 
-    if IsFileExtension(PChar(fileNameItem), '.ay;.ayc;.sqt;.stc;.pt3;.asc;.psg;.stp;.psc;.vtx;.sng;.sap;.str;.sid;.dmm;.pld;.cop;.mp3;.xm;.mod;.it;.s3m') then
+    if IsFileExtension(PChar(fileNameItem), '.ay;.ayc;.sqt;.stc;.pt1;.pt2;.pt3;.asc;.psg;.stp;.psc;.vtx;.sng;.sap;.str;.sid;.dmm;.pld;.cop;.mp3;.xm;.mod;.it;.s3m;.m') then
       iconText := '#11# ' + fileNameItem
     else if IsFileExtension(PChar(fileNameItem), '.txt;.md;.nfo;.xml;.json') then
       iconText := '#10# ' + fileNameItem
@@ -618,12 +618,12 @@ begin
         Continue;
       end;
 
-      if (searchRec.Attr and faDirectory) <> 0 then
+      if ((searchRec.Attr and faDirectory) <> 0) and ((searchRec.Attr and faHidden) = 0) then
       begin
         if itemName <> '..' then
           FDirectories.Add(itemName);
       end
-      else if (searchRec.Attr and faAnyFile) <> 0 then
+      else if (searchRec.Attr and faHidden) = 0 then
       begin
         if (FFilter = '') or (Pos(LowerCase(FFilter), LowerCase(itemName)) > 0) then
           FFiles.Add(itemName);

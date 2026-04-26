@@ -30,6 +30,7 @@ type
     FDriveIsFull: Boolean;
     FHeight: Integer;
     FLeft: Integer;
+    FOnAboutClick: TNotifyEvent;
     FOnAddFileClick: TNotifyEvent;
     FOnDeleteFileClick: TNotifyEvent;
     FOnExportClick: TNotifyEvent;
@@ -65,7 +66,9 @@ type
     procedure SetPlaybackState(IsPlaying, IsPaused: Boolean);
     procedure SetFileState(HasDiskLoaded, HasFileSelected: Boolean);
     function IsLoopEnabled: Boolean;
+    procedure SetLoopEnabled(Loop:Boolean);
     function IsShuffleEnabled: Boolean;
+    procedure SetShuffle(state: Boolean);
     function GetColorThemeIndex: Integer; // Получить текущую тему
 
     property OnOpenClick: TNotifyEvent read FOnOpenClick write FOnOpenClick;
@@ -80,6 +83,7 @@ type
     property OnNextClick: TNotifyEvent read FOnNextClick write FOnNextClick;
     property OnLoopClick: TNotifyEvent read FOnLoopClick write FOnLoopClick;
     property OnShuffleClick: TNotifyEvent read FOnShuffleClick write FOnShuffleClick;
+    property OnAboutClick: TNotifyEvent read FOnAboutClick write FOnAboutClick;
     property OnColorThemeChange: TNotifyEvent read FOnColorThemeChange write FOnColorThemeChange;
     property Height: Integer read FHeight;
     property DriveIsFull: Boolean read FDriveIsFull write FDriveIsFull;
@@ -107,7 +111,7 @@ begin
   FDriveIsFull := False;
   GuiEnableTooltip();
 
-  GuiSetStyle(BUTTON, BORDER_WIDTH, 1);
+
   {
   GuiSetStyle(TOGGLE, BORDER_WIDTH, 2);
   GuiSetStyle(BUTTON, BORDER_WIDTH, 2);
@@ -219,7 +223,7 @@ begin
 
   // Button 11: Next (Normal)
   FButtons[18].IconId := ICON_INFO;
-  FButtons[18].Hint := 'Next track (Ctrl+Right)';
+  FButtons[18].Hint := 'About';
   FButtons[18].ButtonType := btNormal;
   FButtons[18].IsPressed := False;
 end;
@@ -317,9 +321,21 @@ begin
   Result := FButtons[13].ToggleState;
 end;
 
+procedure TToolbar.SetLoopEnabled(Loop: Boolean);
+begin
+  FButtons[13].ToggleState := Loop;
+ // FButtons[14].ToggleState := not FButtons[13].ToggleState;
+end;
+
 function TToolbar.IsShuffleEnabled: Boolean;
 begin
   Result := FButtons[14].ToggleState;
+end;
+
+procedure TToolbar.SetShuffle(state: Boolean);
+begin
+  FButtons[14].ToggleState := state;
+ // FButtons[13].ToggleState := not FButtons[14].ToggleState;
 end;
 
 function TToolbar.GetColorThemeIndex: Integer;
@@ -474,6 +490,7 @@ begin
                 9: if Assigned(FOnPauseClick) then FOnPauseClick(Self);
                 10: if Assigned(FOnStopClick) then FOnStopClick(Self);
                 11: if Assigned(FOnNextClick) then FOnNextClick(Self);
+                18: if  Assigned(FOnAboutClick) then FOnAboutClick(Self);
               end;
             end;
           end
@@ -486,7 +503,7 @@ begin
       btCombo:
         begin
           // Список тем для выбора
-          comboItems := '#25#;#25#;#25#;#25#';//;Bluish;Cyber;Terminal';
+          comboItems := '#25#;#25#;#25#;#25#;#25#;#25#;#25#';//;Bluish;Cyber;Terminal';
 
           // Сохраняем старое значение
           OldComboIndex := FButtons[i].ComboIndex;

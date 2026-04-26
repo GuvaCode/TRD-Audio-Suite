@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+
+<svg
+   version="1.1"
+   id="Layer_1"
+   viewBox="0 0 508 508"
+   xml:space="preserve"
+   sodipodi:docname="floppy-disk-save-file-svgrepo-com.svg"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><defs
+   id="defs265" /><sodipodi:namedview
+   id="namedview263"
+   pagecolor="#ffffff"
+   bordercolor="#000000"
+   borderopacity="0.25"
+   inkscape:showpageshadow="2"
+   inkscape:pageopacity="0.0"
+   inkscape:pagecheckerboard="0"
+   inkscape:deskcolor="#d1d1d1"
+   showgrid="false"
+   inkscape:zoom="0.46456693"
+   inkscape:cx="21.525424"
+   inkscape:cy="255.07627"
+   inkscape:window-width="1440"
+   inkscape:window-height="828"
+   inkscape:window-x="0"
+   inkscape:window-y="0"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="Layer_1" />
+<path
+   style="fill:#2884A9;"
+   d="M425.6,6H390v192c0,9.6-5.6,20-15.6,20H70c-10,0-20-10-20-20V6H22.4C14.4,6,6,10.4,6,18v467.6  c0,7.6,8.8,16.4,16.4,16.4H50V270v-2c0-1.2,0.8-2,2-2h404c1.2,0,2,0.8,2,2v234h32c7.6,0,12-8.4,12-16.4V82.8L425.6,6z"
+   id="path234" />
+<rect
+   x="54"
+   y="266"
+   style="fill:#73BADD;"
+   width="400"
+   height="236"
+   id="rect236" /><polygon
+   fill="#00a7e1"
+   points="338.29,0 308.726,0 406.816,138 436.392,138 "
+   id="polygon122"
+   transform="matrix(1.828764,0,0,1.7314743,-352.49049,260.23828)" /><polygon
+   fill="#3d9b00"
+   points="308.726,0 279.151,0 377.241,138 406.816,138 "
+   id="polygon124"
+   transform="matrix(1.828764,0,0,1.7314743,-352.49049,260.23828)" /><polygon
+   fill="#ffc610"
+   points="279.151,0 249.575,0 347.665,138 377.241,138 "
+   id="polygon126"
+   transform="matrix(1.828764,0,0,1.7314743,-352.49049,260.23828)" /><polygon
+   fill="#ff1f1f"
+   points="249.575,0 220,0 318.101,138 347.665,138 "
+   id="polygon128"
+   transform="matrix(1.828764,0,0,1.7314743,-352.49049,260.23828)" />
+<path
+   style="fill:#E8E3E3;"
+   d="M54,6v192c0,7.6,8.4,16,16,16h304.4c7.6,0,11.6-8.4,11.6-16V6H54z"
+   id="path238" />
+<rect
+   x="282"
+   y="38"
+   style="fill:#2884A9;"
+   width="72"
+   height="144"
+   id="rect240" />
+<path
+   style="fill:#CC9999;"
+   d="M278,184v2h2C278.8,186,278,185.2,278,184z"
+   id="path242" />
+<path
+   d="M490,508H22.4C11.2,508,0,496.8,0,485.6V18C0,6.8,11.6,0,22.4,0h404c1.2,0,2,0.4,2.8,1.2l77.6,78c0.8,0.8,1.2,1.6,1.2,2.8  v404C508,496.8,501.2,508,490,508z M22.4,8C15.6,8,8,12,8,18v467.6C8,492,16,500,22.4,500H490c6,0,10-7.6,10-14.4v-402L424.8,8H22.4  z"
+   id="path244" />
+<path
+   d="M456,506c-2.4,0-4-1.6-4-4V268h-18c-2.4,0-4-1.6-4-4s1.6-4,4-4h22c2.4,0,4,1.6,4,4v238C460,504.4,458.4,506,456,506z"
+   id="path246" />
+<path
+   d="M52,506c-2.4,0-4-1.6-4-4V264c0-2.4,1.6-4,4-4h350c2.4,0,4,1.6,4,4s-1.6,4-4,4H56v234C56,504.4,54.4,506,52,506z"
+   id="path248" />
+<path
+   d="M374.4,220H70c-10.8,0-22-11.2-22-22V6c0-2.4,1.6-4,4-4s4,1.6,4,4v192c0,6.8,7.6,14,14,14h304.4c6,0,9.6-7.2,9.6-14V6  c0-2.4,1.6-4,4-4s4,1.6,4,4v192C392,208.4,386,220,374.4,220z"
+   id="path250" />
+<path
+   d="M158.4,220c-11.2,0-22.4-11.2-22.4-22V6c0-2.4,1.6-4,4-4s4,1.6,4,4v192c0,6.4,8,14,14.4,14c2.4,0,4,1.6,4,4  S160.8,220,158.4,220z"
+   id="path252" />
+<path
+   d="M356,188h-76c-2.4,0-4-1.6-4-4V36c0-2.4,1.6-4,4-4h38c2.4,0,4,1.6,4,4s-1.6,4-4,4h-34v140h68V40h-2c-2.4,0-4-1.6-4-4  s1.6-4,4-4h6c2.4,0,4,1.6,4,4v148C360,186.4,358.4,188,356,188z"
+   id="path254" />
+<path
+   d="M410,324H102c-2.4,0-4-1.6-4-4s1.6-4,4-4h308c2.4,0,4,1.6,4,4S412.4,324,410,324z"
+   id="path256" />
+<path
+   d="M410,388H102c-2.4,0-4-1.6-4-4s1.6-4,4-4h308c2.4,0,4,1.6,4,4S412.4,388,410,388z"
+   id="path258" />
+<path
+   d="M410,452H102c-2.4,0-4-1.6-4-4s1.6-4,4-4h308c2.4,0,4,1.6,4,4S412.4,452,410,452z"
+   id="path260" />
+</svg>

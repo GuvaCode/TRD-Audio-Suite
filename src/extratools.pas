@@ -5,14 +5,16 @@ unit extratools;
 interface
 
 uses
-  Raylib, Classes, SysUtils, raymath, Math;
+  Raylib, raygui, Classes, SysUtils, raymath, Math;
 
 procedure DrawSpectrumLogo(X, Y, Height: Integer);
 procedure DrawBetaDisk(Font: TFont);
-//function GetLogoImage128: TImage;
+procedure DrawTechIconLogo(posX, posY, size: Integer; const text: PChar; textSize: Integer; corner, zxLogo : Boolean;  color: TColorB);
+function CreateTechIconLogoImage(size: Integer; zxLogo: Boolean; color: TColorB): TImage;
 function ShortenFileName(const Input: string; MaxLength: Integer = 8): string;
 function DetectFileTypeAndParams(const FileName: string; out LoadAddr, CodeSize: Word; out FileType: Char): Boolean;
-
+function CreateTechIconLogoImageWithText(size: Integer; const text: PChar;
+  textSize: Integer; zxLogo: Boolean; color: TColorB): TImage;
 // Shader functions
 //procedure InitLoadingShader;
 //procedure UninitLoadingShader;
@@ -98,22 +100,7 @@ begin
   end;
 end;
 
-procedure UninitLoadingShader;
-begin
-  if FLoadingTextureCreated then
-  begin
-    // Не выгружаем текстуру, если она была передана извне
-    if not FUseCustomTexture then
-      UnloadTexture(FLoadingTexture);
-    FLoadingTextureCreated := False;
-  end;
 
-  if IsShaderValid(FLoadingShader) then
-  begin
-    UnloadShader(FLoadingShader);
-    FLoadingShader := Default(TShader);
-  end;
-end;
 
 procedure DrawLoadingShader(Width, Height: Integer);
 var
@@ -200,7 +187,7 @@ var
 begin
   ScreenWidth := GetScreenWidth;
   ScreenHeight := GetScreenHeight;
-
+  DrawRectangle(0, 0, ScreenWidth, ScreenHeight, RayWhite);
   // Overlay text on top of shader
   TextSize := MeasureTextEx(Font, '* TR-DOS Ver 5.03 *', 16, 1.0);
   TextPos.X := (ScreenWidth - TextSize.X) / 2;
@@ -235,6 +222,145 @@ begin
   TextPos.Y := ScreenHeight - 30;
   DrawTextPro(Font, 'A>K', TextPos, Vector2Zero, 0, 16, 1.0, BLACK);
 end;
+
+procedure DrawTechIconLogo(posX, posY, size: Integer; const text: PChar;
+  textSize: Integer; corner, zxLogo: Boolean; color: TColorB);
+var
+  borderSize: Single;
+  offsetY: Boolean;
+  textPosX, textPosY: Integer;
+  i: Integer;
+  lineColor: TColorB;
+  colors: array[0..3] of TColorB;
+  stripeWidth: Single;
+  offset: Single;
+  v1, v2, v3, v4: TVector2;
+begin
+  borderSize := Ceil(size / 16.0);
+  offsetY := True;
+
+  // Make sure there is no character with pixels down the text baseline
+  i := 0;
+  while text[i] <> #0 do
+  begin
+    if (text[i] = 'q') or (text[i] = 'y') or (text[i] = 'p') or
+       (text[i] = 'j') or (text[i] = 'g') then
+    begin
+      offsetY := False;
+      Break;
+    end;
+    Inc(i);
+  end;
+
+  textPosX := posX + size - Round(2.0 * borderSize) - MeasureText(text, textSize);
+  textPosY := posY + size - Round(2.0 * borderSize) - textSize;
+  if offsetY then
+    textPosY := textPosY + (2 * textSize div 10);
+
+  lineColor := GetColor(GuiGetStyle(DEFAULT, LINE_COLOR));
+  DrawRectangle(posX - 1, posY - 1, size + 2, size + 2, lineColor);
+  DrawRectangle(posX, posY, size, size, RAYWHITE);
+
+  // Draw Spectrum logo with stripes filling the entire square
+  if zxLogo then
+  begin
+    colors[0] := ColorCreate(255, 31, 31, 255);   // Red
+    colors[1] := ColorCreate(255, 198, 16, 255);  // Yellow
+    colors[2] := ColorCreate(61, 155, 0, 255);    // Green
+    colors[3] := ColorCreate(0, 167, 225, 255);   // Blue
+
+    stripeWidth := size / 2.8;
+    offset := stripeWidth * 1.2;  // Increased offset for more slant
+
+    // Enable scissor test to clip drawing to square boundaries
+    BeginScissorMode(posX, posY, size, size);
+
+    for i := 0 to 3 do
+    begin
+      // Left slanted triangle
+      v1 := Vector2Create(posX + i * stripeWidth, posY);
+      v2 := Vector2Create(posX + (i + 1) * stripeWidth - offset, posY + size);
+      v3 := Vector2Create(posX + (i + 1) * stripeWidth, posY);
+      DrawTriangle(v1, v2, v3, colors[i]);
+
+      // Right slanted triangle (bottom part)
+      v1 := Vector2Create(posX + i * stripeWidth, posY);
+      v2 := Vector2Create(posX + i * stripeWidth - offset, posY + size);
+      v3 := Vector2Create(posX + (i + 1) * stripeWidth - offset, posY + size);
+      DrawTriangle(v1, v2, v3, colors[i]);
+    end;
+
+    EndScissorMode();
+  end;
+
+  DrawRectangleLines(posX, posY, size, size, color);
+  DrawText(text, textPosX, textPosY, textSize, color);
+
+  if corner then
+  begin
+    DrawTriangle(
+      Vector2Create(posX + size - Round(2 * borderSize) - (size div 4), posY + Round(2 * borderSize)),
+      Vector2Create(posX + size - Round(2 * borderSize), posY + Round(2 * borderSize) + (size div 4)),
+      Vector2Create(posX + size - Round(2 * borderSize), posY + Round(2 * borderSize)),
+      color
+    );
+  end;
+end;
+
+function CreateTechIconLogoImage(size: Integer; zxLogo: Boolean; color: TColorB): TImage;
+var
+  img: TImage;
+  colors: array[0..3] of TColorB;
+  stripeWidth: Single;
+  offset: Single;
+  i: Integer;
+  posX, posY: Integer;
+  v1, v2, v3: TVector2;
+begin
+  // Create blank image
+  img := GenImageColor(size, size, RAYWHITE);
+
+  // Draw border
+  for i := 0 to size - 1 do
+  begin
+    ImageDrawPixel(@img, 0, i, color);
+    ImageDrawPixel(@img, size-1, i, color);
+    ImageDrawPixel(@img, i, 0, color);
+    ImageDrawPixel(@img, i, size-1, color);
+  end;
+
+  // Draw Spectrum logo
+  if zxLogo then
+  begin
+    colors[0] := ColorCreate(255, 31, 31, 255);   // Red
+    colors[1] := ColorCreate(255, 198, 16, 255);  // Yellow
+    colors[2] := ColorCreate(61, 155, 0, 255);    // Green
+    colors[3] := ColorCreate(0, 167, 225, 255);   // Blue
+
+    stripeWidth := size / 2.8;
+    offset := stripeWidth * 1.2;
+    posX := 0;
+    posY := 0;
+
+    for i := 0 to 3 do
+    begin
+      // Left slanted triangle
+      v1 := Vector2Create(posX + i * stripeWidth, posY);
+      v2 := Vector2Create(posX + (i + 1) * stripeWidth - offset, posY + size);
+      v3 := Vector2Create(posX + (i + 1) * stripeWidth, posY);
+      ImageDrawTriangle(@img, v1, v2, v3, colors[i]);
+
+      // Right slanted triangle (bottom part)
+      v1 := Vector2Create(posX + i * stripeWidth, posY);
+      v2 := Vector2Create(posX + i * stripeWidth - offset, posY + size);
+      v3 := Vector2Create(posX + (i + 1) * stripeWidth - offset, posY + size);
+      ImageDrawTriangle(@img, v1, v2, v3, colors[i]);
+    end;
+  end;
+
+  Result := img;
+end;
+
 {
 function GetLogoImage128: TImage;
 var
@@ -386,6 +512,111 @@ begin
     except
     end;
   end;
+end;
+
+function CreateTechIconLogoImageWithText(size: Integer; const text: PChar;
+  textSize: Integer; zxLogo: Boolean; color: TColorB): TImage;
+var
+  img: TImage;
+  colors: array[0..3] of TColorB;
+  stripeWidth: Single;
+  offset: Single;
+  i: Integer;
+  posX, posY: Integer;
+  v1, v2, v3: TVector2;
+  borderSize: Integer;
+  textWidth: Integer;
+  textPosX, textPosY: Integer;
+  offsetY: Boolean;
+begin
+  // Create blank image
+  img := GenImageColor(size, size, RAYWHITE);
+
+  borderSize := Max(2, size div 16);
+
+  // Draw outer border (darker)
+  for i := 0 to size - 1 do
+  begin
+    ImageDrawPixel(@img, 0, i, DARKGRAY);
+    ImageDrawPixel(@img, 1, i, DARKGRAY);
+    ImageDrawPixel(@img, size-1, i, DARKGRAY);
+    ImageDrawPixel(@img, size-2, i, DARKGRAY);
+    ImageDrawPixel(@img, i, 0, DARKGRAY);
+    ImageDrawPixel(@img, i, 1, DARKGRAY);
+    ImageDrawPixel(@img, i, size-1, DARKGRAY);
+    ImageDrawPixel(@img, i, size-2, DARKGRAY);
+  end;
+
+  // Draw inner border with specified color
+  for i := borderSize to size - 1 - borderSize do
+  begin
+    ImageDrawPixel(@img, borderSize, i, color);
+    ImageDrawPixel(@img, size-1-borderSize, i, color);
+    ImageDrawPixel(@img, i, borderSize, color);
+    ImageDrawPixel(@img, i, size-1-borderSize, color);
+  end;
+
+  // Draw Spectrum logo
+  if zxLogo then
+  begin
+    colors[0] := ColorCreate(255, 31, 31, 255);   // Red
+    colors[1] := ColorCreate(255, 198, 16, 255);  // Yellow
+    colors[2] := ColorCreate(61, 155, 0, 255);    // Green
+    colors[3] := ColorCreate(0, 167, 225, 255);   // Blue
+
+    stripeWidth := size / 2.8;
+    offset := stripeWidth * 1.2;
+    posX := 0;
+    posY := 0;
+
+    for i := 0 to 3 do
+    begin
+      // Left slanted triangle
+      v1 := Vector2Create(posX + i * stripeWidth, posY);
+      v2 := Vector2Create(posX + (i + 1) * stripeWidth - offset, posY + size);
+      v3 := Vector2Create(posX + (i + 1) * stripeWidth, posY);
+      ImageDrawTriangle(@img, v1, v2, v3, colors[i]);
+
+      // Right slanted triangle (bottom part)
+      v1 := Vector2Create(posX + i * stripeWidth, posY);
+      v2 := Vector2Create(posX + i * stripeWidth - offset, posY + size);
+      v3 := Vector2Create(posX + (i + 1) * stripeWidth - offset, posY + size);
+      ImageDrawTriangle(@img, v1, v2, v3, colors[i]);
+    end;
+  end;
+
+  // Draw text centered
+  if (text <> nil) and (text^ <> #0) then
+  begin
+    // Calculate text width
+    textWidth := MeasureText(text, textSize);
+
+    // Center text horizontally
+    textPosX := (size - textWidth) div 2;
+
+    // Check for descending characters (q, y, p, j, g)
+    offsetY := True;
+    i := 0;
+    while text[i] <> #0 do
+    begin
+      if (text[i] = 'q') or (text[i] = 'y') or (text[i] = 'p') or
+         (text[i] = 'j') or (text[i] = 'g') then
+      begin
+        offsetY := False;
+        Break;
+      end;
+      Inc(i);
+    end;
+
+    // Center text vertically (with adjustment for descenders)
+    textPosY := (size - textSize) div 2;
+    if offsetY then
+      textPosY := textPosY + (textSize div 4);
+
+    ImageDrawText(@img, text, textPosX, textPosY, textSize, color);
+  end;
+
+  Result := img;
 end;
 
 end.
