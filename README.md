@@ -57,8 +57,6 @@ https://murmulator.ru/zxmusic
 
 The website features thousands of tracks in TR-DOS format, ready to use with TR-DOS Audio Suite.
 
-## Building from Source
-
 ### Dependencies
 
 - Lazarus / Free Pascal Compiler (FPC) 3.2+
