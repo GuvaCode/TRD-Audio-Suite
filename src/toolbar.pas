@@ -195,13 +195,13 @@ begin
 
   // Button 13: Loop (Toggle)
   FButtons[13].IconId := ICON_REPEAT_FILL;
-  FButtons[13].Hint := 'Track Loop (Ctrl+L)';
+  FButtons[13].Hint := 'Track Loop';
   FButtons[13].ButtonType := btToggle;
   FButtons[13].ToggleState := False;
 
   // Button 14: Shuffle (Toggle)
   FButtons[14].IconId := ICON_SHUFFLE_FILL;
-  FButtons[14].Hint := 'Shuffle (Ctrl+S)';
+  FButtons[14].Hint := 'Shuffle';
   FButtons[14].ButtonType := btToggle;
   FButtons[14].ToggleState := False;
 
