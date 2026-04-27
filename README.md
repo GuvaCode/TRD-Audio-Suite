@@ -60,9 +60,9 @@ The website features thousands of tracks in TR-DOS format, ready to use with TR-
 ### Dependencies
 
 - Lazarus / Free Pascal Compiler (FPC) 3.2+
-- Ray4Laz - Raylib bindings for Lazarus
-- Raylib 4.0+
-- RayGui
+- ray4laz - Raylib bindings for Lazarus
+- raylib 6.0
+- rayGui
 - ZXTune library
 
 ### Pascal Modules Used
@@ -113,8 +113,8 @@ This project is licensed under the MIT License.
 ## Acknowledgements
 
 - ZXTune - Audio playback engine
-- Raylib - Graphics library
-- RayGui - GUI library
+- raylib - Graphics library
+- rayGui - GUI library
 - TR-DOS documentation from the ZX Spectrum community
 - Murmulator - For the ZX Spectrum music collection
 
