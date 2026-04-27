@@ -1,8 +1,5 @@
 
 
-[License: MIT]
-[Platform: Windows | Linux | macOS]
-
 TR-DOS Audio Suite — это десктопное приложение для управления образами дисков TR-DOS (.trd) и прослушивания аудиомодулей из игр и демо ZX Spectrum. Приложение сочетает в себе редактор образов дисков с мощным аудиоплеером на базе движка ZXTune.
 <img src="img.png" style="width: 512px; max-width: 100%; height: auto;" alt="">
 
