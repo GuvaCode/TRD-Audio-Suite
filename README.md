@@ -1,5 +1,5 @@
 [License: MIT]
-[Platform: Windows | Linux | macOS]
+[Platform: Windows | Linux ]
 
 # TR-DOS Audio Suite
 
