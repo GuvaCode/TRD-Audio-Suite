@@ -44,7 +44,8 @@ const
   LINK_MAIL_TEXT = 'guvacode@gmail.com';
   LBL_SUPPORT_TEXT = 'Support:';
   BTN_SPONSOR_TEXT = 'Boosty';
-  BTN_SPONSOR_TEXT2 = 'Itch.io';
+  BTN_SPONSOR_TEXT2 = 'ЮMoney';
+  BTN_SPONSOR_TEXT3 = 'Itch.io';
   BTN_CLOSE_TEXT = '#159#Close';
 
   TOOL_NAME = 'TR-DOS Audio Suite';
@@ -355,13 +356,17 @@ begin
     buttonTextAlign := GuiGetStyle(BUTTON, TEXT_ALIGNMENT);
     GuiSetStyle(BUTTON, TEXT_ALIGNMENT, TEXT_ALIGN_CENTER);
 
-    if GuiButton(RectangleCreate(state.windowBounds.x + state.windowBounds.width - 165 - 90,
+    if GuiButton(RectangleCreate(state.windowBounds.x + state.windowBounds.width - 255 - 90,
+                                 state.windowBounds.y + 305, 80, 24), BTN_SPONSOR_TEXT3) = 1 then
+      OpenURL('https://yoomoney.ru/to/4100118048054657');
+
+    if GuiButton(RectangleCreate(state.windowBounds.x + state.windowBounds.width - 170 - 90,
                                  state.windowBounds.y + 305, 80, 24), BTN_SPONSOR_TEXT2) = 1 then
-      OpenURL('https://boosty.to/guvacode');
+      OpenURL('https://yoomoney.ru/to/4100118048054657');
 
 
 
-    if GuiButton(RectangleCreate(state.windowBounds.x + state.windowBounds.width - 80 - 90,
+    if GuiButton(RectangleCreate(state.windowBounds.x + state.windowBounds.width - 85 - 90,
                                  state.windowBounds.y + 305, 80, 24), BTN_SPONSOR_TEXT) = 1 then
       OpenURL('https://boosty.to/guvacode');
 

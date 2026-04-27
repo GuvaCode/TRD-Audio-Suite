@@ -578,25 +578,7 @@ begin
     if Assigned(FOnAddFileClick) and (not GuiIsLocked) then FOnAddFileClick(Self);
   end;
 
-  // Shortcut for Loop toggle
-  if (IsKeyDown(KEY_RIGHT_CONTROL) or IsKeyDown(KEY_LEFT_CONTROL)) and IsKeyPressed(KEY_L) then
-  begin
-    if not GuiIsLocked then
-    begin
-      FButtons[13].ToggleState := not FButtons[13].ToggleState;
-      if Assigned(FOnLoopClick) then FOnLoopClick(Self);
-    end;
-  end;
 
-  // Shortcut for Shuffle toggle (Ctrl+S)
-  if (IsKeyDown(KEY_RIGHT_CONTROL) or IsKeyDown(KEY_LEFT_CONTROL)) and IsKeyPressed(KEY_S) then
-  begin
-    if not GuiIsLocked then
-    begin
-      FButtons[14].ToggleState := not FButtons[14].ToggleState;
-      if Assigned(FOnShuffleClick) then FOnShuffleClick(Self);
-    end;
-  end;
 end;
 
 end.
