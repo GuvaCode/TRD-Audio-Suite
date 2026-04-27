@@ -358,7 +358,7 @@ begin
 
     if GuiButton(RectangleCreate(state.windowBounds.x + state.windowBounds.width - 255 - 90,
                                  state.windowBounds.y + 305, 80, 24), BTN_SPONSOR_TEXT3) = 1 then
-      OpenURL('https://yoomoney.ru/to/4100118048054657');
+      OpenURL('https://guvacode.itch.io/tr-dos-audio-suite');
 
     if GuiButton(RectangleCreate(state.windowBounds.x + state.windowBounds.width - 170 - 90,
                                  state.windowBounds.y + 305, 80, 24), BTN_SPONSOR_TEXT2) = 1 then
