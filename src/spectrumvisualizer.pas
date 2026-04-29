@@ -211,8 +211,8 @@ begin
     barHeight := Round(value * FHeight);
     if barHeight < 1 then
       barHeight := 1;
-    if barHeight > FHeight then
-      barHeight := FHeight;
+    if barHeight > FHeight - 5 then
+      barHeight := FHeight -5;  //
 
     barX := FLeft + i * (actualBarWidth + FBarSpacing);
     barY := FTop + FHeight - barHeight;
@@ -277,8 +277,8 @@ begin
         peakHeight := Round(FPeakHold[i] * FHeight);
         if peakHeight < 1 then
           peakHeight := 1;
-        if peakHeight > FHeight then
-          peakHeight := FHeight;
+        if peakHeight > FHeight - 5 then
+          peakHeight := FHeight - 5;
 
         // Рисуем пик
         case FBarStyle of
@@ -289,7 +289,7 @@ begin
         end;
 
         // Маленький маркер на пике
-        DrawRectangle(barX, FTop + FHeight - peakHeight - 1,
+        DrawRectangle(barX, FTop + FHeight - peakHeight -1,
                      actualBarWidth, 2, FPeakColor);
       end;
     end;

@@ -6,7 +6,8 @@ uses
   {$IFDEF LINUX} cthreads,{$ENDIF}
   Classes, CustApp, raylib, raygui, SysUtils, trdos_reader, ctypes, math,
   libzxtune, playerUi, TuneZXPlayer, SpectrumPanel, Toolbar, rayfiledialog,
-  fontTools, extratools, gui_window_about, IniFiles;
+  fontTools, extratools, gui_window_about, IniFiles,
+  gui_window_visualizer_settings;
 
 const
   SCREEN_WIDTH = 640;
@@ -69,7 +70,11 @@ type
     FSelectedFileInfo: TFileInfo;
     FAutoAdvance: boolean;
     FShuffle: boolean;
+
     FAboutState: TGuiWindowAboutState;
+    FVisSettingsWindow: TGuiWindowVisSettingsState;
+
+
 
     // Toolbar handlers
     procedure OnToolbarOpenClick(Sender: TObject);
@@ -86,7 +91,7 @@ type
     procedure OnToolbarDeleteFileClick(Sender: TObject);
     procedure OnToolbarColorThemeClick(Sender: TObject);
     procedure OnToolbarAboutClick(Sender: TObject);
-
+    procedure OnVisSettingClick(Sender: TObject);
   public
     procedure SaveSetting;
     procedure LoadSetting;
@@ -107,17 +112,9 @@ begin
   SetWindowMinSize(SCREEN_WIDTH, SCREEN_HEIGHT);
   MyIcon := LoadImage('data/icon.png');
   SetWindowIcon(MyIcon);
-
-
-
-
-
- // GuiLoadStyleDefault();
- // GuiSetFont(LoadUnicodeFont('data/2a03_memesbruh03.ttf', 16, TEXTURE_FILTER_POINT));
- // GuiSetStyle(DEFAULT, TEXT_SIZE, 16);
+  SetExitKey(KEY_NULL);
 
   SpeccyFont := LoadFont('data/ZXSpectrum.ttf');
-
   FReader := TTRDOSReader.Create;
   FStatusMessage := 'The disk image is not loaded. Open or Drag the *.trd file here.';
   FCurrentFileName := '';
@@ -130,6 +127,12 @@ begin
   FPlayer.OnStateChanged := @OnPlayerStateChanged;
   FPlayer.OnProgressChanged := @OnPlayerProgressChanged;
   FPlayer.OnTrackEnd := @OnPlayerTrackEnd;
+
+  // Сделать более плавным
+  FPlayer.SetFFTSmoothing(0.72);
+  FPlayer.SetFFTAttack(0.01);
+  FPlayer.SetFFTRelease(0.50);
+
 
 
   if not FPlayer.IsInitialized then
@@ -153,6 +156,7 @@ begin
   FAddFileDialog.Filter := '';
  // FAddFileDialog.InitialDir := GetWorkingDirectory();
 
+
   InfoPanel := TInfoPanel.Create;
   ModuleInfoPanel := TModuleInfoPanel.Create;
   ModuleInfoPanel.Player := FPlayer;
@@ -172,6 +176,7 @@ begin
   SpectrumPanel.Visualizer.ShowLabels := True;
   SpectrumPanel.Visualizer.BackgroundColor := GetColor(GuiGetStyle(DEFAULT, BACKGROUND_COLOR));
   SpectrumPanel.Visualizer.LabelColor := GetColor(GuiGetStyle(DEFAULT, TEXT_COLOR_NORMAL));
+  SpectrumPanel.OnSettingClick:=@OnVisSettingClick;
 
   FileListView := TFileListView.Create(FReader);
   FileListView.OnFileSelected := @OnFileSelected;
@@ -197,8 +202,10 @@ begin
   FaboutState.supportDrag := True; // Опционально
   FaboutState.ImageLogo := LoadTextureFromImage(MyIcon);
   UnloadImage(MyIcon);
-  LoadSetting;
 
+  // Инициализируем окно настроек
+   FVisSettingsWindow := InitGuiWindowVisSettings;
+   LoadSetting;
 end;
 
 destructor TRayApplication.Destroy;
@@ -375,37 +382,39 @@ begin
   FAboutState.windowActive := true;
 end;
 
+procedure TRayApplication.OnVisSettingClick(Sender: TObject);
+begin
+  FVisSettingsWindow.windowActive := True;
+end;
+
 procedure TRayApplication.SaveSetting;
 var
   MyIni: TIniFile;
 begin
-  // Create object (creates the file if it doesn't exist)
   MyIni := TIniFile.Create('data/config.ini');
   try
-//    MyIni.WriteString('General', 'Username', 'JohnDoe');
     MyIni.WriteInteger('General', 'StyleIndex', fToolbar.GetColorThemeIndex);
-//    MyIni.WriteBool('Window', 'Maximized', True);
   finally
-    MyIni.Free; // Always free memory
+    MyIni.Free;
   end;
+  SaveVisualizerSettings(FVisSettingsWindow,'data/config.ini');
 end;
 
 procedure TRayApplication.LoadSetting;
 var
   MyIni: TIniFile;
-//  User: string;
   I: Integer;
 begin
   MyIni := TIniFile.Create('data/config.ini');
   try
-    // ReadString('Section', 'Key', 'DefaultValue')
-   // User := MyIni.ReadString('General', 'Username', 'Guest');
     i := MyIni.ReadInteger('General', 'StyleIndex', 0);
     ApplyStyleIndex(I);
-   Ftoolbar.SetColorThemeIndex(I);
+    Ftoolbar.SetColorThemeIndex(I);
   finally
     MyIni.Free;
   end;
+  LoadVisualizerSettings(FVisSettingsWindow,'data/config.ini');
+  ApplySettingsToVisualizer(FVisSettingsWindow, SpectrumPanel.Visualizer, FPLayer);
 end;
 
 procedure TRayApplication.OnFileSelected(Sender: TObject);
@@ -430,6 +439,7 @@ begin
    SpectrumPanel.Visualizer.BackgroundColor := GetColor(GuiGetStyle(DEFAULT, BACKGROUND_COLOR));
    SpectrumPanel.Visualizer.LabelColor := GetColor(GuiGetStyle(DEFAULT, TEXT_COLOR_NORMAL));
    GuiSetStyle(BUTTON, BORDER_WIDTH, 1);
+   self.SpectrumPanel.ApplyThemeToVisualizer;
 end;
 
 procedure TRayApplication.ExportFileToPath(const FilePath: string);
@@ -526,7 +536,7 @@ begin
 
   if FReader.LoadFromFile(NormalizedPath) then
   begin
-    FCurrentFileName := NormalizedPath;  // ✅ СОХРАНЯЕМ нормализованный путь
+    FCurrentFileName := NormalizedPath;
     FStatusMessage := Format('Loaded: %s (%d files)',
       [ExtractFileName(NormalizedPath), FReader.FileCount]);
     FileListView.Refresh;
@@ -607,30 +617,6 @@ begin
     FPlayer.Stop;
   FileListView.PlayLabelIndex := -1;
 end;
-{
-procedure TRayApplication.HandleFileDrop;
-var
-  droppedFiles: TFilePathList;
-  NormalizedPath: string;
-begin
-  if IsFileDropped() then
-  begin
-    droppedFiles := LoadDroppedFiles();
-    if droppedFiles.count = 1 then
-    begin
-      // Нормализуем путь
-      NormalizedPath := ExpandFileName(droppedFiles.paths[0]);
-      NormalizedPath := StringReplace(NormalizedPath, '//', '/', [rfReplaceAll]);
-
-      if IsFileExtension(PAnsiChar(NormalizedPath), '.trd') then
-        LoadDiskImage(NormalizedPath)
-      else
-        FStatusMessage := 'Please drop a .trd file';
-    end;
-    UnloadDroppedFiles(droppedFiles);
-  end;
-end;  }
-
 
 procedure TRayApplication.HandleFileDrop;
 var
@@ -650,6 +636,8 @@ begin
     begin
       NormalizedPath := ExpandFileName(droppedFiles.paths[0]);
       NormalizedPath := StringReplace(NormalizedPath, '//', '/', [rfReplaceAll]);
+
+
 
       if IsFileExtension(PAnsiChar(NormalizedPath), '.trd') then
         LoadDiskImage(NormalizedPath)  // Load disk image
@@ -773,7 +761,7 @@ begin
 
   if IsWindowMinimized then
   begin
-    DrawBetaDisk(Self.SpeccyFont);
+  //  DrawBetaDisk(Self.SpeccyFont);
   //  DrawLoadingShader(GetScreenWidth, GetScreenHeight);
     Exit;
   end;
@@ -811,7 +799,6 @@ begin
   FileListView.Left := PANEL_MARGIN;
   FileListView.Top := TOOLBAR_HEIGHT + PANEL_MARGIN;
   FileListView.Width := LISTVIEW_WIDTH;
- // FileListView.Height := GetScreenHeight() - statusBarHeight - playbackControlsHeight - yOffset - PANEL_MARGIN * 2;
   FileListView.Height := listViewHeight;
   FileListView.Draw;
 
@@ -904,8 +891,6 @@ begin
                                 GetScreenWidth() - PANEL_MARGIN * 2,
                                 statusBarHeight),
                                 PChar(FStatusMessage));
-
-
 
   DrawSpectrumLogo(GetScreenWidth() - PANEL_MARGIN * 7  ,  GetScreenHeight() - statusBarHeight - PANEL_MARGIN div 2, 20);
   TmpColor := GetColor(GuiGetStyle(Default, BORDER_COLOR_NORMAL));
@@ -1018,6 +1003,16 @@ begin
     GuiWindowAbout(FaboutState);
     guiLock;
   end;
+
+   if FvisSettingsWindow.windowActive then
+   begin
+        guiUnlock;
+    GuiWindowVisSettings(FvisSettingsWindow, SpectrumPanel.Visualizer, FPlayer);
+    guiLock;
+   end;
+
+
+
 end;
 
 procedure TRayApplication.DoRun;

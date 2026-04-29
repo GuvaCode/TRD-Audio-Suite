@@ -10,6 +10,20 @@ uses
 type
   TPlaybackState = (psStopped, psPlaying, psPaused);
 
+  // Настройки спектроанализатора
+  TFFTSettings = record
+    SmoothingTimeConstant: Single;      // Сглаживание во времени (0.0-1.0, выше = плавнее)
+    AttackTime: Single;                 // Время атаки (быстрый рост)
+    ReleaseTime: Single;                // Время затухания (медленный спад)
+    MinDecibels: Single;                // Минимальный уровень в dB
+    MaxDecibels: Single;                // Максимальный уровень в dB
+    NormalizationFactor: Single;        // Фактор нормализации (усиление)
+    UseLogScale: Boolean;               // Использовать логарифмическую шкалу частот
+    BoostHighFrequencies: Single;       // Усиление высоких частот
+    BoostLowFrequencies: Single;        // Усиление низких частот
+    Sensitivity: Single;                // Чувствительность (1.0 = стандарт)
+  end;
+
   PFFTComplex = ^TFFTComplex;
   TFFTComplex = record
     real: Single;
@@ -50,8 +64,20 @@ type
     FFTWorkBuffer: PFFTComplex;
     FFTSpectrum: PFFTComplex;
     FFTPrevMagnitudes: PSingle;
+    FFTAttackMagnitudes: PSingle;      // Для быстрой атаки
+    FFTReleaseMagnitudes: PSingle;     // Для медленного затухания
     FFTSpectrumData: array[0..511] of Single;
     FFTDataReady: boolean;
+
+    // Настройки спектра
+    FFTConfig: TFFTSettings;
+    FLastFFTTime: Double;
+
+    // FFT Accumulator
+    FFTAccumulator: array of SmallInt;
+    FFTAccumulatorPos: Integer;
+    FFTAccumulatorLock: TCriticalSection;
+    FFFTProcessCount: Integer;
 
     // Ring buffer
     FAudioRingBuffer: array of SmallInt;
@@ -68,7 +94,10 @@ type
     procedure FreeFFT;
     procedure ProcessFFT(const AudioSamples: array of SmallInt);
     procedure CooleyTukeyFFT(spectrum: PFFTComplex; n: Integer);
+    procedure AddSampleToFFT(Sample: SmallInt);
     procedure UpdateFFTFromRingBuffer;
+    procedure ApplyFrequencyWeights(var Magnitudes: array of Single; Size: Integer);
+    function GetFrequencyWeight(BinIndex: Integer; TotalBins: Integer): Single;
   public
     constructor Create;
     destructor Destroy; override;
@@ -87,6 +116,18 @@ type
     function GetSpectrumData: PSingle;
     function GetSpectrumSize: Integer;
 
+    // Настройка спектроанализатора
+    procedure SetFFTSmoothing(Value: Single);  // 0.5 = быстро, 0.95 = плавно
+    procedure SetFFTAttack(Value: Single);      // Время атаки (0.1-1.0)
+    procedure SetFFTRelease(Value: Single);     // Время затухания (0.1-1.0)
+    procedure SetFFTSensitivity(Value: Single); // Чувствительность (0.5-2.0)
+    procedure SetFFTBoost(HighBoost, LowBoost: Single); // Усиление частот
+    function GetFFTSettings: TFFTSettings;
+    procedure ApplyPreset(presetName: string);  // "smooth", "sharp", "club", "classic"
+
+    // Сброс настроек к стандартным
+    procedure ResetFFTSettings;
+
     function GetPosition: Integer;
     function GetDuration: Integer;
     function GetProgressPercent: Single;
@@ -102,6 +143,7 @@ type
     property CurrentModuleType: string read FCurrentModuleType;
     property PlaybackProgress: single read FPlaybackProgress;
     property IsInitialized: boolean read FInitialized;
+    property FFTSettings: TFFTSettings read GetFFTSettings;
 
     property OnStateChanged: TNotifyEvent read FOnStateChanged write FOnStateChanged;
     property OnProgressChanged: TNotifyEvent read FOnProgressChanged write FOnProgressChanged;
@@ -118,9 +160,17 @@ const
   DEFAULT_CHANNELS = 2;
   FFT_WINDOW_SIZE = 1024;
   FFT_BUFFER_SIZE = 512;
-  SMOOTHING_TIME_CONSTANT = 0.8;
-  MIN_DECIBELS = -100.0;
-  MAX_DECIBELS = -30.0;
+
+  // Стандартные настройки
+  DEFAULT_SMOOTHING = 0.85;        // Плавное затухание
+  DEFAULT_ATTACK = 0.3;            // Быстрая атака
+  DEFAULT_RELEASE = 0.92;          // Медленное затухание
+  DEFAULT_MIN_DB = -100.0;
+  DEFAULT_MAX_DB = -30.0;
+  DEFAULT_NORMALIZATION = 1.2;
+  DEFAULT_SENSITIVITY = 1.0;
+  DEFAULT_HIGH_BOOST = 1.0;
+  DEFAULT_LOW_BOOST = 1.0;
 
 var
   GlobalCurrentPlayer: TZXTunePlayer = nil;
@@ -135,6 +185,7 @@ var
   temp: TFFTComplex;
   twiddleRealNext: Single;
 begin
+  // Bit-reversal permutation
   j := 0;
   for i := 1 to n - 2 do
   begin
@@ -153,6 +204,7 @@ begin
     end;
   end;
 
+  // FFT iterations
   len := 2;
   while len <= n do
   begin
@@ -197,15 +249,32 @@ begin
   FFTBufferSize := FFT_BUFFER_SIZE;
   FSampleRate := DEFAULT_FREQ;
 
+  // Выделение памяти для FFT
   FFTSpectrum := GetMem(SizeOf(TFFTComplex) * FFTWindowSize);
   FFTWorkBuffer := GetMem(SizeOf(TFFTComplex) * FFTWindowSize);
   FFTPrevMagnitudes := GetMem(SizeOf(Single) * FFTBufferSize);
+  FFTAttackMagnitudes := GetMem(SizeOf(Single) * FFTBufferSize);
+  FFTReleaseMagnitudes := GetMem(SizeOf(Single) * FFTBufferSize);
 
+  // Инициализация настроек
+  ResetFFTSettings;
+
+  // Инициализация аккумулятора для FFT
+  SetLength(FFTAccumulator, FFTWindowSize);
+  FFTAccumulatorPos := 0;
+  FFTAccumulatorLock := TCriticalSection.Create;
+  FLastFFTTime := 0;
+  FFFTProcessCount := 0;
+
+  // Обнуление буферов
   FillChar(FFTSpectrum^, SizeOf(TFFTComplex) * FFTWindowSize, 0);
   FillChar(FFTWorkBuffer^, SizeOf(TFFTComplex) * FFTWindowSize, 0);
   FillChar(FFTPrevMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
+  FillChar(FFTAttackMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
+  FillChar(FFTReleaseMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
   FillChar(FFTSpectrumData, SizeOf(FFTSpectrumData), 0);
 
+  // Ring buffer
   FRingBufferSize := FFTWindowSize * 4;
   SetLength(FAudioRingBuffer, FRingBufferSize);
   FillChar(FAudioRingBuffer[0], FRingBufferSize * SizeOf(SmallInt), 0);
@@ -221,6 +290,12 @@ end;
 
 procedure TZXTunePlayer.FreeFFT;
 begin
+  if FFTAccumulatorLock <> nil then
+  begin
+    FFTAccumulatorLock.Free;
+    FFTAccumulatorLock := nil;
+  end;
+
   if FRingBufferCriticalSection <> nil then
   begin
     FRingBufferCriticalSection.Free;
@@ -245,19 +320,100 @@ begin
     FFTPrevMagnitudes := nil;
   end;
 
+  if FFTAttackMagnitudes <> nil then
+  begin
+    FreeMem(FFTAttackMagnitudes);
+    FFTAttackMagnitudes := nil;
+  end;
+
+  if FFTReleaseMagnitudes <> nil then
+  begin
+    FreeMem(FFTReleaseMagnitudes);
+    FFTReleaseMagnitudes := nil;
+  end;
+
   SetLength(FAudioRingBuffer, 0);
+  SetLength(FFTAccumulator, 0);
+end;
+
+procedure TZXTunePlayer.AddSampleToFFT(Sample: SmallInt);
+begin
+  if FFTAccumulatorLock = nil then Exit;
+
+  FFTAccumulatorLock.Enter;
+  try
+    FFTAccumulator[FFTAccumulatorPos] := Sample;
+    Inc(FFTAccumulatorPos);
+
+    // Когда аккумулятор заполнен - запускаем FFT
+    if FFTAccumulatorPos >= FFTWindowSize then
+    begin
+      ProcessFFT(FFTAccumulator);
+      FFTAccumulatorPos := 0;
+      Inc(FFFTProcessCount);
+    end;
+  finally
+    FFTAccumulatorLock.Leave;
+  end;
+end;
+
+function TZXTunePlayer.GetFrequencyWeight(BinIndex: Integer; TotalBins: Integer): Single;
+var
+  frequency: Single;
+  normalisedFreq: Single;
+begin
+  // Расчет частоты для бина
+  frequency := (BinIndex / TotalBins) * (FSampleRate / 2);
+
+  // Логарифмическая шкала для более естественного звучания
+  if FFTConfig.UseLogScale then
+  begin
+    normalisedFreq := Ln(1 + frequency / 100) / Ln(1 + 20000 / 100);
+    Result := 1.0;
+  end
+  else
+  begin
+    normalisedFreq := frequency / 20000;
+  end;
+
+  // Баланс низких и высоких частот
+  if normalisedFreq < 0.2 then
+    Result := FFTConfig.BoostLowFrequencies
+  else if normalisedFreq > 0.7 then
+    Result := FFTConfig.BoostHighFrequencies
+  else
+    Result := 1.0;
+
+  // Применяем общую чувствительность
+  Result := Result * FFTConfig.Sensitivity;
+end;
+
+procedure TZXTunePlayer.ApplyFrequencyWeights(var Magnitudes: array of Single; Size: Integer);
+var
+  i: Integer;
+  weight: Single;
+begin
+  for i := 0 to Size - 1 do
+  begin
+    weight := GetFrequencyWeight(i, Size);
+    Magnitudes[i] := Magnitudes[i] * weight * FFTConfig.NormalizationFactor;
+  end;
 end;
 
 procedure TZXTunePlayer.ProcessFFT(const AudioSamples: array of SmallInt);
 var
   i, bin: Integer;
-  x, blackmanWeight, re, im, linearMagnitude, smoothedMagnitude, db, normalized: Single;
+  x, blackmanWeight, re, im, linearMagnitude: Single;
   sampleCount: Integer;
+  attackFactor, releaseFactor: Single;
+  currentMagnitude: array[0..511] of Single;
+  timeDelta: Single;
 begin
   sampleCount := Length(AudioSamples);
   if sampleCount < FFTWindowSize then
     Exit;
 
+  // Применяем оконную функцию
   for i := 0 to FFTWindowSize - 1 do
   begin
     x := (2.0 * PI * i) / (FFTWindowSize - 1.0);
@@ -267,66 +423,81 @@ begin
     FFTWorkBuffer[i].imaginary := 0.0;
   end;
 
+  // Выполняем FFT
   CooleyTukeyFFT(FFTWorkBuffer, FFTWindowSize);
   Move(FFTWorkBuffer^, FFTSpectrum^, SizeOf(TFFTComplex) * FFTWindowSize);
 
+  // Расчет времени для динамических эффектов
+  timeDelta := GetTime() - FLastFFTTime;
+  if timeDelta > 0.1 then timeDelta := 0.033; // Ограничиваем максимальный шаг
+  if timeDelta <= 0 then timeDelta := 0.016;   // Примерно 60 FPS
+
+  FLastFFTTime := GetTime();
+
+  // Коэффициенты атаки и затухания
+  attackFactor := 1.0 - Power(0.01, timeDelta / FFTConfig.AttackTime);
+  releaseFactor := 1.0 - Power(0.01, timeDelta / FFTConfig.ReleaseTime);
+
+  // Конвертируем в спектр мощности
   for bin := 0 to FFTBufferSize - 1 do
   begin
     re := FFTWorkBuffer[bin].real;
     im := FFTWorkBuffer[bin].imaginary;
     linearMagnitude := Sqrt(re * re + im * im) / FFTWindowSize;
 
-    smoothedMagnitude := SMOOTHING_TIME_CONSTANT * FFTPrevMagnitudes[bin] +
-                        (1.0 - SMOOTHING_TIME_CONSTANT) * linearMagnitude;
-    FFTPrevMagnitudes[bin] := smoothedMagnitude;
+    // Запоминаем текущую величину для обработки
+    currentMagnitude[bin] := linearMagnitude;
 
-    if smoothedMagnitude > 1e-40 then
-      db := Ln(smoothedMagnitude) * 20.0 / Ln(10)
+    // Стандартное сглаживание (простой фильтр)
+    FFTPrevMagnitudes[bin] := FFTConfig.SmoothingTimeConstant * FFTPrevMagnitudes[bin] +
+                             (1.0 - FFTConfig.SmoothingTimeConstant) * linearMagnitude;
+
+    // Динамическая обработка (атака и затухание)
+    if linearMagnitude > FFTAttackMagnitudes[bin] then
+      // Атака - быстрый подъем
+      FFTAttackMagnitudes[bin] := FFTAttackMagnitudes[bin] +
+                                  (linearMagnitude - FFTAttackMagnitudes[bin]) * attackFactor
     else
-      db := MIN_DECIBELS;
+      // Затухание - медленный спад
+      FFTAttackMagnitudes[bin] := FFTAttackMagnitudes[bin] +
+                                  (linearMagnitude - FFTAttackMagnitudes[bin]) * releaseFactor;
 
-    normalized := (db - MIN_DECIBELS) / (MAX_DECIBELS - MIN_DECIBELS);
-    FFTSpectrumData[bin] := Clamp(normalized, 0.0, 1.0);
+    // Применяем настройки к финальному значению
+    FFTReleaseMagnitudes[bin] := FFTAttackMagnitudes[bin];
+  end;
+
+  // Применяем весовые коэффициенты частот
+  ApplyFrequencyWeights(FFTReleaseMagnitudes^, FFTBufferSize);
+
+  // Конвертируем в децибелы и нормализуем
+  for bin := 0 to FFTBufferSize - 1 do
+  begin
+    // Используем обработанные значения
+    FFTReleaseMagnitudes[bin] := Max(FFTReleaseMagnitudes[bin], 1e-6);
+
+    // Конвертируем в децибелы
+    if FFTReleaseMagnitudes[bin] > 1e-40 then
+      FFTSpectrumData[bin] := 20 * Log10(FFTReleaseMagnitudes[bin])
+    else
+      FFTSpectrumData[bin] := FFTConfig.MinDecibels;
+
+    // Нормализуем в диапазон [0..1]
+    FFTSpectrumData[bin] := (FFTSpectrumData[bin] - FFTConfig.MinDecibels) /
+                            (FFTConfig.MaxDecibels - FFTConfig.MinDecibels);
+
+    // Клиппинг
+    FFTSpectrumData[bin] := Clamp(FFTSpectrumData[bin], 0.0, 1.0);
+
+    // Применяем чувствительность (экспоненциальная кривая для лучшей реакции)
+    FFTSpectrumData[bin] := Power(FFTSpectrumData[bin], 1.0 / FFTConfig.Sensitivity);
   end;
 
   FFTDataReady := True;
 end;
 
 procedure TZXTunePlayer.UpdateFFTFromRingBuffer;
-var
-  samplesToRead: Integer;
-  audioSamples: array of SmallInt;
-  i: Integer;
 begin
-  if FRingBufferCriticalSection = nil then
-    Exit;
-
-  Inc(FFFTUpdateCounter);
-  if FFFTUpdateCounter < 4 then
-    Exit;
-  FFFTUpdateCounter := 0;
-
-  FRingBufferCriticalSection.Enter;
-  try
-    samplesToRead := FRingBufferDataAvailable;
-    if samplesToRead < FFTWindowSize then
-      Exit;
-
-    samplesToRead := FFTWindowSize;
-    SetLength(audioSamples, samplesToRead);
-
-    for i := 0 to samplesToRead - 1 do
-    begin
-      audioSamples[i] := FAudioRingBuffer[FRingBufferReadPos];
-      FRingBufferReadPos := (FRingBufferReadPos + 1) mod FRingBufferSize;
-    end;
-
-    FRingBufferDataAvailable := FRingBufferDataAvailable - samplesToRead;
-  finally
-    FRingBufferCriticalSection.Leave;
-  end;
-
-  ProcessFFT(audioSamples);
+  // Не используется в новой реализации
 end;
 
 { TZXTunePlayer - Main Implementation }
@@ -338,6 +509,7 @@ var
   writePos: Integer;
   player: TZXTunePlayer;
   SamplesRendered: Integer;
+  monoSample: SmallInt;
 begin
   player := GlobalCurrentPlayer;
   if player = nil then Exit;
@@ -359,22 +531,27 @@ begin
 
   samples := PSmallInt(bufferData);
 
-  if player.FRingBufferCriticalSection <> nil then
+  // Накопление буфера с немедленной FFT
+  for i := 0 to frames - 1 do
   begin
-    player.FRingBufferCriticalSection.Enter;
-    try
-      for i := 0 to frames - 1 do
-      begin
+    monoSample := (samples[i * 2] + samples[i * 2 + 1]) div 2;
+    player.AddSampleToFFT(monoSample);
+
+    // Сохраняем в ring buffer
+    if player.FRingBufferCriticalSection <> nil then
+    begin
+      player.FRingBufferCriticalSection.Enter;
+      try
         if player.FRingBufferDataAvailable < player.FRingBufferSize - 1 then
         begin
           writePos := player.FRingBufferWritePos;
-          player.FAudioRingBuffer[writePos] := (samples[i * 2] + samples[i * 2 + 1]) div 2;
+          player.FAudioRingBuffer[writePos] := monoSample;
           player.FRingBufferWritePos := (writePos + 1) mod player.FRingBufferSize;
           player.FRingBufferDataAvailable := player.FRingBufferDataAvailable + 1;
         end;
+      finally
+        player.FRingBufferCriticalSection.Leave;
       end;
-    finally
-      player.FRingBufferCriticalSection.Leave;
     end;
   end;
 end;
@@ -440,7 +617,6 @@ begin
   end;
 
   CloseAudioDevice();
-
   FreeFFT;
 
   if GlobalCurrentPlayer = Self then
@@ -458,21 +634,27 @@ begin
   try
     if (FZXTunePlayer <> nil) then
     begin
-      // Получаем частоту дискретизации (уже загружена)
       Frequency := ZXTune_GetSoundFrequency(FZXTunePlayer);
       if Frequency <= 0 then
-        Frequency := 44100;  // Значение по умолчанию
+        Frequency := 44100;
 
-      // Конвертируем миллисекунды в семплы
       SamplePos := (NativeUInt(PositionMs) * Frequency) div 1000;
 
-      // Используем ZXTune_SeekSound для перемотки
       if ZXTune_SeekSound(FZXTunePlayer, SamplePos) >= 0 then
       begin
-        // Сбрасываем флаг конца трека
         FTrackEndTriggered := False;
 
-        // Обновляем буфер FFT
+        if FFTAccumulatorLock <> nil then
+        begin
+          FFTAccumulatorLock.Enter;
+          try
+            FFTAccumulatorPos := 0;
+            FillChar(FFTAccumulator[0], Length(FFTAccumulator) * SizeOf(SmallInt), 0);
+          finally
+            FFTAccumulatorLock.Leave;
+          end;
+        end;
+
         if FRingBufferCriticalSection <> nil then
         begin
           FRingBufferCriticalSection.Enter;
@@ -482,13 +664,17 @@ begin
             FRingBufferDataAvailable := 0;
             FillChar(FAudioRingBuffer[0], FRingBufferSize * SizeOf(SmallInt), 0);
             FillChar(FFTPrevMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
+            FillChar(FFTAttackMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
+            FillChar(FFTReleaseMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
             FillChar(FFTSpectrumData, SizeOf(FFTSpectrumData), 0);
           finally
             FRingBufferCriticalSection.Leave;
           end;
         end;
+
         FFTDataReady := False;
         FFFTUpdateCounter := 0;
+        FFFTProcessCount := 0;
       end;
     end;
   finally
@@ -505,7 +691,6 @@ begin
   if Duration > 0 then
   begin
     TargetMs := Round(Percent * Duration);
-    // Ограничиваем диапазон
     if TargetMs < 0 then TargetMs := 0;
     if TargetMs > Duration then TargetMs := Duration;
     Seek(TargetMs);
@@ -522,7 +707,6 @@ begin
     Exit;
 
   Stop;
-
   FTrackEndTriggered := False;
 
   try
@@ -549,15 +733,24 @@ begin
 
     FillChar(attrBuffer, SizeOf(attrBuffer), 0);
     if ZXTune_GetModuleAttribute(FZXTuneModule, 'Title', @attrBuffer, SizeOf(attrBuffer)) then
-      FCurrentSongName := String(attrBuffer);
+      FCurrentSongName := String(attrBuffer)
+    else
+      FCurrentSongName := ExtractFileName(FileName);
+
+    if FCurrentSongName = '' then
+      FCurrentSongName := 'Unknown';
 
     FillChar(attrBuffer, SizeOf(attrBuffer), 0);
     if ZXTune_GetModuleAttribute(FZXTuneModule, 'Author', @attrBuffer, SizeOf(attrBuffer)) then
-      FCurrentAuthor := String(attrBuffer);
+      FCurrentAuthor := String(attrBuffer)
+    else
+      FCurrentAuthor := 'Unknown';
 
     FillChar(attrBuffer, SizeOf(attrBuffer), 0);
     if ZXTune_GetModuleAttribute(FZXTuneModule, 'Type', @attrBuffer, SizeOf(attrBuffer)) then
-      FCurrentModuleType := String(attrBuffer);
+      FCurrentModuleType := String(attrBuffer)
+    else
+      FCurrentModuleType := 'Module';
 
     FZXTunePlayer := ZXTune_CreatePlayer(FZXTuneModule);
     if FZXTunePlayer = nil then
@@ -575,11 +768,24 @@ begin
     if FLoopMode then
       SetLoopMode(True);
 
+    if FFTAccumulatorLock <> nil then
+    begin
+      FFTAccumulatorLock.Enter;
+      try
+        FFTAccumulatorPos := 0;
+        FillChar(FFTAccumulator[0], Length(FFTAccumulator) * SizeOf(SmallInt), 0);
+      finally
+        FFTAccumulatorLock.Leave;
+      end;
+    end;
+
     if FRingBufferCriticalSection <> nil then
     begin
       FRingBufferCriticalSection.Enter;
       try
         FillChar(FFTPrevMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
+        FillChar(FFTAttackMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
+        FillChar(FFTReleaseMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
         FillChar(FFTSpectrumData, SizeOf(FFTSpectrumData), 0);
         FRingBufferWritePos := 0;
         FRingBufferReadPos := 0;
@@ -589,13 +795,19 @@ begin
         FRingBufferCriticalSection.Leave;
       end;
     end;
+
     FFTDataReady := False;
     FFFTUpdateCounter := 0;
+    FFFTProcessCount := 0;
+    FLastFFTTime := 0;
 
     Result := True;
 
   except
-    Result := False;
+    on E: Exception do
+    begin
+      Result := False;
+    end;
   end;
 end;
 
@@ -689,8 +901,6 @@ begin
     if Assigned(FOnProgressChanged) then
       FOnProgressChanged(Self);
 
-    UpdateFFTFromRingBuffer;
-
     if FTrackEndTriggered then
     begin
       FTrackEndTriggered := False;
@@ -710,6 +920,115 @@ begin
   Result := FFTBufferSize;
 end;
 
+{ Настройка спектроанализатора }
+
+procedure TZXTunePlayer.SetFFTSmoothing(Value: Single);
+begin
+  FFTConfig.SmoothingTimeConstant := Clamp(Value, 0.3, 0.98);
+end;
+
+procedure TZXTunePlayer.SetFFTAttack(Value: Single);
+begin
+  FFTConfig.AttackTime := Clamp(Value, 0.01, 0.5);
+end;
+
+procedure TZXTunePlayer.SetFFTRelease(Value: Single);
+begin
+  FFTConfig.ReleaseTime := Clamp(Value, 0.05, 1.0);
+end;
+
+procedure TZXTunePlayer.SetFFTSensitivity(Value: Single);
+begin
+  FFTConfig.Sensitivity := Clamp(Value, 0.3, 3.0);
+end;
+
+procedure TZXTunePlayer.SetFFTBoost(HighBoost, LowBoost: Single);
+begin
+  FFTConfig.BoostHighFrequencies := Clamp(HighBoost, 0.5, 2.5);
+  FFTConfig.BoostLowFrequencies := Clamp(LowBoost, 0.5, 2.5);
+end;
+
+function TZXTunePlayer.GetFFTSettings: TFFTSettings;
+begin
+  Result := FFTConfig;
+end;
+
+procedure TZXTunePlayer.ApplyPreset(presetName: string);
+begin
+  presetName := LowerCase(presetName);
+
+  if presetName = 'smooth' then
+  begin
+    // Плавный, музыкальный
+    FFTConfig.SmoothingTimeConstant := 0.92;
+    FFTConfig.AttackTime := 0.05;
+    FFTConfig.ReleaseTime := 0.35;
+    FFTConfig.Sensitivity := 0.9;
+    FFTConfig.BoostHighFrequencies := 1.1;
+    FFTConfig.BoostLowFrequencies := 0.9;
+    FFTConfig.NormalizationFactor := 1.1;
+    FFTConfig.UseLogScale := True;
+  end
+  else if presetName = 'sharp' then
+  begin
+    // Резкий, быстрый
+    FFTConfig.SmoothingTimeConstant := 0.5;
+    FFTConfig.AttackTime := 0.02;
+    FFTConfig.ReleaseTime := 0.1;
+    FFTConfig.Sensitivity := 1.5;
+    FFTConfig.BoostHighFrequencies := 1.3;
+    FFTConfig.BoostLowFrequencies := 1.0;
+    FFTConfig.NormalizationFactor := 1.3;
+    FFTConfig.UseLogScale := False;
+  end
+  else if presetName = 'club' then
+  begin
+    // Клубный (ударные и бас)
+    FFTConfig.SmoothingTimeConstant := 0.7;
+    FFTConfig.AttackTime := 0.03;
+    FFTConfig.ReleaseTime := 0.25;
+    FFTConfig.Sensitivity := 1.2;
+    FFTConfig.BoostHighFrequencies := 1.2;
+    FFTConfig.BoostLowFrequencies := 1.5;
+    FFTConfig.NormalizationFactor := 1.0;
+    FFTConfig.UseLogScale := True;
+  end
+  else if presetName = 'classic' then
+  begin
+    // Классический (как в старых плеерах)
+    FFTConfig.SmoothingTimeConstant := 0.85;
+    FFTConfig.AttackTime := 0.03;
+    FFTConfig.ReleaseTime := 0.2;
+    FFTConfig.Sensitivity := 1.0;
+    FFTConfig.BoostHighFrequencies := 1.0;
+    FFTConfig.BoostLowFrequencies := 1.0;
+    FFTConfig.NormalizationFactor := 1.0;
+    FFTConfig.UseLogScale := False;
+  end;
+
+  // Сброс накопленных значений для плавного перехода
+  if FFTPrevMagnitudes <> nil then
+    FillChar(FFTPrevMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
+  if FFTAttackMagnitudes <> nil then
+    FillChar(FFTAttackMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
+  if FFTReleaseMagnitudes <> nil then
+    FillChar(FFTReleaseMagnitudes^, SizeOf(Single) * FFTBufferSize, 0);
+end;
+
+procedure TZXTunePlayer.ResetFFTSettings;
+begin
+  FFTConfig.SmoothingTimeConstant := DEFAULT_SMOOTHING;
+  FFTConfig.AttackTime := DEFAULT_ATTACK;
+  FFTConfig.ReleaseTime := DEFAULT_RELEASE;
+  FFTConfig.MinDecibels := DEFAULT_MIN_DB;
+  FFTConfig.MaxDecibels := DEFAULT_MAX_DB;
+  FFTConfig.NormalizationFactor := DEFAULT_NORMALIZATION;
+  FFTConfig.Sensitivity := DEFAULT_SENSITIVITY;
+  FFTConfig.BoostHighFrequencies := DEFAULT_HIGH_BOOST;
+  FFTConfig.BoostLowFrequencies := DEFAULT_LOW_BOOST;
+  FFTConfig.UseLogScale := True;
+end;
+
 function TZXTunePlayer.IsPlaying: boolean;
 begin
   Result := FPlaybackState = psPlaying;
@@ -725,7 +1044,6 @@ begin
   Result := FPlaybackState = psStopped;
 end;
 
-{ TZXTunePlayer - Position and Duration Methods }
 function TZXTunePlayer.GetPosition: Integer;
 begin
   Result := 0;
@@ -733,7 +1051,6 @@ begin
   try
     if FZXTunePlayer <> nil then
     begin
-      // Используем новую функцию, которая сама корректирует позицию при loop
       Result := ZXTune_GetPositionMsWithLoop(FZXTunePlayer, @FModuleInfo);
       if Result < 0 then Result := 0;
     end;

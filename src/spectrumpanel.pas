@@ -12,26 +12,32 @@ type
   TSpectrumPanel = class
   private
     FLeft: Integer;
+    FOnSettingClick: TNotifyEvent;
     FTop: Integer;
     FWidth: Integer;
     FHeight: Integer;
     FTitle: string;
     FVisualizer: TSpectrumVisualizer;
     FState: Integer;
+
   public
     constructor Create;
     destructor Destroy; override;
 
     procedure Draw(SpectrumData: PSingle; SpectrumSize: Integer);
 
+    // Применение темы из raygui к визуализатору
+    procedure ApplyThemeToVisualizer;
+
     property Left: Integer read FLeft write FLeft;
     property Top: Integer read FTop write FTop;
     property Width: Integer read FWidth write FWidth;
     property Height: Integer read FHeight write FHeight;
     property Title: string read FTitle write FTitle;
-
+    property SpecSetting: Integer read FState;
     // Доступ к настройкам визуализатора
     property Visualizer: TSpectrumVisualizer read FVisualizer;
+    property OnSettingClick: TNotifyEvent read FOnSettingClick write FOnSettingClick;
   end;
 
 implementation
@@ -68,6 +74,23 @@ begin
   inherited Destroy;
 end;
 
+// Применение темы из raygui к визуализатору
+procedure TSpectrumPanel.ApplyThemeToVisualizer;
+var
+  baseColorNormal: TColor;
+  textColorNormal: TColor;
+begin
+  // Получаем цвета из текущей темы raygui
+  baseColorNormal := GetColor(GuiGetStyle(DEFAULT, BASE_COLOR_NORMAL));
+  textColorNormal := GetColor(GuiGetStyle(DEFAULT, TEXT_COLOR_NORMAL));
+
+  // Применяем к визуализатору
+  FVisualizer.BackgroundColor := Fade(baseColorNormal, 0.85);
+  FVisualizer.BarColor := baseColorNormal;
+  FVisualizer.PeakColor := textColorNormal;
+  FVisualizer.LabelColor := textColorNormal;
+end;
+
 procedure TSpectrumPanel.Draw(SpectrumData: PSingle; SpectrumSize: Integer);
 var
   panelRect: TRectangle;
@@ -82,20 +105,21 @@ begin
 
   // Используем стандартную панель raygui с заголовком
   GuiPanel(panelRect, PChar('#125#' + FTitle));
-      GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_CENTER);
-     GuiSetStyle(SLIDER, SLIDER_PADDING, 1);
-     //GuiSetStyle(UILABEL,
-      GuiToggleSlider(RectangleCreate(FLeft + FWidth - 50 , FTop + 4, 45, 16), '#44#;#45#', @FState);
+  GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_CENTER);
+  GuiSetStyle(SLIDER, SLIDER_PADDING, 1);
 
-      GuiSetStyle(SLIDER, SLIDER_PADDING, 0);
+  if GuiButton(RectangleCreate(FLeft + FWidth - 30, FTop + 4, 25, 16), '#141#') = 1 then
+    if Assigned(FOnSettingClick) then
+      FOnSettingClick(Self);
+
+  GuiSetStyle(SLIDER, SLIDER_PADDING, 0);
+
   // Область для содержимого (внутри панели, с отступом от краев и заголовка)
   contentRect := RectangleCreate(FLeft + PANEL_PADDING,
                                   FTop + 24 + PANEL_PADDING,  // 24 - высота заголовка панели
                                   FWidth - PANEL_PADDING * 2,
                                   FHeight - 24 - PANEL_PADDING * 2);
 
-
-  if FState = 1 then exit;
   // Рисуем спектр
   if (contentRect.height > 20) then
   begin
@@ -113,7 +137,6 @@ begin
     begin
       // Нет данных - показываем сообщение
       tempText := 'No audio data';
-     // GuiSetStyle(DEFAULT, TEXT_SIZE, 10);
       GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_CENTER);
       GuiLabel(RectangleCreate(contentRect.x,
                                 contentRect.y + contentRect.height / 2 - 10,
@@ -121,6 +144,10 @@ begin
                 PChar(tempText));
       GuiSetStyle(DEFAULT, TEXT_ALIGNMENT, TEXT_ALIGN_LEFT);
     end;
+
+
+    DrawRectangleLinesEx(contentRect, 1.0 ,GetColor( GuiGetStyle(COMBOBOX, BORDER_COLOR_NORMAL)));
+
   end;
 end;
 
