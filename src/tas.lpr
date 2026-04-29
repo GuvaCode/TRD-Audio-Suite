@@ -58,7 +58,7 @@ type
 
     SpectrumPanel: TSpectrumPanel;
     FToolbar: TToolbar;
-    FReader: TTRDOSReader;
+    FReader: TZXImageReader;
     FStatusMessage: string;
     FCurrentFileName: string;
 
@@ -115,7 +115,7 @@ begin
   SetExitKey(KEY_NULL);
 
   SpeccyFont := LoadFont('data/ZXSpectrum.ttf');
-  FReader := TTRDOSReader.Create;
+  FReader := TZXImageReader.Create;
   FStatusMessage := 'The disk image is not loaded. Open or Drag the *.trd file here.';
   FCurrentFileName := '';
   FAutoAdvance := False;
@@ -206,6 +206,9 @@ begin
   // Инициализируем окно настроек
    FVisSettingsWindow := InitGuiWindowVisSettings;
    LoadSetting;
+
+
+
 end;
 
 destructor TRayApplication.Destroy;
@@ -356,17 +359,28 @@ begin
   FileName := FReader.Files[SelectedIndex].Name + '.' +
               FReader.Files[SelectedIndex].FileType;
 
+  // Останавливаем воспроизведение, если удаляем текущий файл
   if FileListView.PlayLabelIndex = SelectedIndex then
     StopPlayback;
 
   if FReader.DeleteFile(SelectedIndex) then
   begin
-    if not FReader.SaveToCurrentFile then
-      FStatusMessage := 'Warning: Failed to save disk after delete';
+    // Сохраняем изменения
+    if FReader.SaveToCurrentFile then
+    begin
+      FStatusMessage := Format('Deleted: %s', [FileName]);
+      FileListView.Refresh;
+      FToolbar.DriveIsFull := (FReader.GetFreeSectorsCount = 0);
 
-    FStatusMessage := Format('Deleted: %s', [FileName]);
-    FileListView.Refresh;
-    FToolbar.DriveIsFull := (FReader.GetFreeSectorsCount = 0);
+      // Если файлов больше нет - очищаем информацию
+      if FReader.FileCount = 0 then
+      begin
+        FillChar(FSelectedFileInfo, SizeOf(TFileInfo), 0);
+        InfoPanel.FileInfo := FSelectedFileInfo;
+      end;
+    end
+    else
+      FStatusMessage := 'Deleted but failed to save disk: ' + FReader.ErrorMessage;
   end
   else
     FStatusMessage := 'Delete failed: ' + FReader.ErrorMessage;
@@ -637,10 +651,9 @@ begin
       NormalizedPath := ExpandFileName(droppedFiles.paths[0]);
       NormalizedPath := StringReplace(NormalizedPath, '//', '/', [rfReplaceAll]);
 
-
-
-      if IsFileExtension(PAnsiChar(NormalizedPath), '.trd') then
-        LoadDiskImage(NormalizedPath)  // Load disk image
+      if IsFileExtension(PAnsiChar(NormalizedPath), '.trd') or
+         IsFileExtension(PAnsiChar(NormalizedPath), '.scl')then
+         LoadDiskImage(NormalizedPath)  // Load disk image
       else if FReader.IsLoaded then
       begin
         // Try to add file to current disk
@@ -1010,8 +1023,6 @@ begin
     GuiWindowVisSettings(FvisSettingsWindow, SpectrumPanel.Visualizer, FPlayer);
     guiLock;
    end;
-
-
 
 end;
 

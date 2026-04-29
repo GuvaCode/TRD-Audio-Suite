@@ -63,7 +63,7 @@ type
 
   TDriveInfoPanel = class
   private
-    FReader: TTRDOSReader;
+    FReader: TZXImageReader;
     FTitle: string;
     FHeight: Integer;
     FLeft: Integer;
@@ -77,7 +77,7 @@ type
     property Left: Integer read FLeft write FLeft;
     property Width: Integer read FWidth write FWidth;
     property Height: Integer read FHeight write FHeight;
-    property Reader: TTRDOSReader read FReader write FReader;
+    property Reader: TZXImageReader read FReader write FReader;
   end;
 
   { TPlayBackPanel }
@@ -108,7 +108,7 @@ type
     FTop: Integer;
     FWidth: Integer;
     FHeight: Integer;
-    FReader: TTRDOSReader;
+    FReader: TZXImageReader;
     FScrollIndex: Integer;
     FActiveIndex: Integer;
     FOnFileSelected: TNotifyEvent;
@@ -116,7 +116,7 @@ type
     procedure SetActiveIndex(AValue: Integer);
     procedure UpdateItemsList;
   public
-    constructor Create(Reader: TTRDOSReader);
+    constructor Create(Reader: TZXImageReader);
     destructor Destroy; override;
     procedure Draw;
     procedure Refresh;
@@ -400,7 +400,7 @@ end;
 
 { TFileListView }
 
-constructor TFileListView.Create(Reader: TTRDOSReader);
+constructor TFileListView.Create(Reader: TZXImageReader);
 begin
   inherited Create;
   FReader := Reader;
@@ -450,6 +450,7 @@ end;
 procedure TFileListView.Refresh;
 begin
   FActiveIndex := -1;
+  FPlayLabelIndex := -1;  // сбрасываем play label
   FScrollIndex := 0;
   UpdateItemsList;
 end;
