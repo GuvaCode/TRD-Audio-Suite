@@ -12,7 +12,7 @@ uses
 const
   SCREEN_WIDTH = 640;
   SCREEN_HEIGHT = 500;
-  FONT_SIZE = 10;
+  //FONT_SIZE = 10;
 
   TOOLBAR_HEIGHT = 38;
   LISTVIEW_WIDTH = 200;
@@ -24,6 +24,19 @@ const
   {$ELSE}
   PATH_SEPARATOR = '/';
   {$ENDIF}
+
+ {$IFDEF WINDOWS}
+  STYLE_DIR = 'data\styles\';
+ {$ELSE}
+  STYLE_DIR = 'data/styles/';
+ {$ENDIF}
+
+ {$IFDEF WINDOWS}
+  FONT_DIR = 'data\fonts\';
+ {$ELSE}
+  FONT_DIR = 'data/fonts/';
+ {$ENDIF}
+ // FONT_DIR
 
 type
   { TRayApplication }
@@ -86,7 +99,7 @@ type
     procedure OnToolbarNextClick(Sender: TObject);
     procedure OnToolbarLoopClick(Sender: TObject);
     procedure OnToolbarShuffleClick(Sender: TObject);
-    procedure OnToolbarNewDriveClick(Sender: TObject);
+ //   procedure OnToolbarNewDriveClick(Sender: TObject);
     procedure OnToolbarAddFileClick(Sender: TObject);
     procedure OnToolbarDeleteFileClick(Sender: TObject);
     procedure OnToolbarColorThemeClick(Sender: TObject);
@@ -140,7 +153,7 @@ begin
 
   // Создание диалогов
   FOpenDialog := TOpenDialog.Create;
-  FOpenDialog.Filter := '.trd';
+  FOpenDialog.Filter := '.scl;.trd';
  // FOpenDialog.InitialDir := GetWorkingDirectory();
 
   FSaveDialog := TSaveDialog.Create;
@@ -192,7 +205,7 @@ begin
   FToolbar.OnNextClick := @OnToolbarNextClick;
   FToolbar.OnLoopClick := @OnToolbarLoopClick;
   FToolbar.OnShuffleClick:= @OnToolbarShuffleClick;
-  FToolbar.OnNewDriveClick := @OnToolbarNewDriveClick;
+  //FToolbar.OnNewDriveClick := @OnToolbarNewDriveClick;
   FToolbar.OnAddFileClick := @OnToolbarAddFileClick;
   FToolbar.OnDeleteFileClick := @OnToolbarDeleteFileClick;
   FToolbar.OnColorThemeChange:= @OnToolbarColorThemeClick;
@@ -235,6 +248,7 @@ end;
 
 procedure TRayApplication.OnToolbarOpenClick(Sender: TObject);
 begin
+  //FOpenDialog.Filter:='.trd;.scl';
   FOpenDialog.Execute;
 end;
 
@@ -322,10 +336,10 @@ begin
 
 end;
 
-procedure TRayApplication.OnToolbarNewDriveClick(Sender: TObject);
+{procedure TRayApplication.OnToolbarNewDriveClick(Sender: TObject);
 begin
-  FSaveDialog.Execute;
-end;
+  //FSaveDialog.Execute;
+end;}
 
 procedure TRayApplication.OnToolbarAddFileClick(Sender: TObject);
 begin
@@ -441,14 +455,16 @@ procedure TRayApplication.ApplyStyleIndex(StyleIndex: Integer);
 begin
  case StyleIndex of
    0: GuiLoadStyleDefault;
-   1: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_amber.rgs'));
-   2: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_ashes.rgs'));
-   3: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_cyber.rgs'));
-   4: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_dark.rgs'));
-   5: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_genesis.rgs'));
-   6: GuiLoadStyle(PChar(GetApplicationDirectory + 'data/style_jungle.rgs'));
+   1: GuiLoadStyle(PChar(GetApplicationDirectory + STYLE_DIR + 'style_amber.rgs'));
+   2: GuiLoadStyle(PChar(GetApplicationDirectory + STYLE_DIR + 'style_ashes.rgs'));
+   3: GuiLoadStyle(PChar(GetApplicationDirectory + STYLE_DIR + 'style_cyber.rgs'));
+   4: GuiLoadStyle(PChar(GetApplicationDirectory + STYLE_DIR + 'style_dark.rgs'));
+   5: GuiLoadStyle(PChar(GetApplicationDirectory + STYLE_DIR + 'style_genesis.rgs'));
+   6: GuiLoadStyle(PChar(GetApplicationDirectory + STYLE_DIR + 'style_jungle.rgs'));
  end;
-   GuiSetFont(LoadUnicodeFont('data/2a03_memesbruh03.ttf', 16, TEXTURE_FILTER_POINT));
+   GuiSetFont(LoadUnicodeFont(FONT_DIR + '2a03_memesbruh03.ttf', 16, TEXTURE_FILTER_POINT));
+
+
    GuiSetStyle(DEFAULT, TEXT_SIZE, 16);
    SpectrumPanel.Visualizer.BackgroundColor := GetColor(GuiGetStyle(DEFAULT, BACKGROUND_COLOR));
    SpectrumPanel.Visualizer.LabelColor := GetColor(GuiGetStyle(DEFAULT, TEXT_COLOR_NORMAL));

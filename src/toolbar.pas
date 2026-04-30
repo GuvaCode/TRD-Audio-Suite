@@ -34,7 +34,7 @@ type
     FOnAddFileClick: TNotifyEvent;
     FOnDeleteFileClick: TNotifyEvent;
     FOnExportClick: TNotifyEvent;
-    FOnNewDriveClick: TNotifyEvent;
+    // FOnNewDriveClick удалено
     FTop: Integer;
     FWidth: Integer;
     FMargin: Integer;
@@ -73,7 +73,7 @@ type
     procedure SetColorThemeIndex(Indx: Integer);
     property OnOpenClick: TNotifyEvent read FOnOpenClick write FOnOpenClick;
     property OnExportClick: TNotifyEvent read FOnExportClick write FOnExportClick;
-    property OnNewDriveClick:  TNotifyEvent read FOnNewDriveClick write FOnNewDriveClick;
+    // property OnNewDriveClick удалено
     property OnAddFileClick:  TNotifyEvent read FOnAddFileClick write FOnAddFileClick;
     property OnDeleteFileClick: TNotifyEvent read FOnDeleteFileClick write FOnDeleteFileClick;
     property OnPreviousClick: TNotifyEvent read FOnPreviousClick write FOnPreviousClick;
@@ -106,7 +106,7 @@ begin
   FHasDiskLoaded := False;
   FHasFileSelected := False;
 
-  FButtonCount := 19;
+  FButtonCount := 18;  // Было 19, стало 18 (удалили кнопку New Drive)
   SetLength(FButtons, FButtonCount);
   FDriveIsFull := False;
   GuiEnableTooltip();
@@ -135,97 +135,93 @@ begin
   FButtons[2].Hint := '';
   FButtons[2].ButtonType := btSeparator;
 
-  // Button 3: New Drive (Normal)
-  FButtons[3].IconId := ICON_FILE_SAVE_CLASSIC;
-  FButtons[3].Hint := 'Create a new TR-DOS disk (Ctrl+N)';
+  // Кнопка New Drive (индекс 3) УДАЛЕНА
+
+  // Button 3: Add File (Normal) - теперь индекс 3 (был 4)
+  FButtons[3].IconId := ICON_FILE_ADD;
+  FButtons[3].Hint := 'Adding file to drive (Ctrl+A)';
   FButtons[3].ButtonType := btNormal;
   FButtons[3].IsPressed := False;
 
-  // Button 4: Add File (Normal)
-  FButtons[4].IconId := ICON_FILE_ADD;
-  FButtons[4].Hint := 'Adding file to drive (Ctrl+A)';
+  // Button 4: Delete File (Normal) - теперь индекс 4 (был 5)
+  FButtons[4].IconId := ICON_FILE_DELETE;
+  FButtons[4].Hint := 'Delete file';
   FButtons[4].ButtonType := btNormal;
   FButtons[4].IsPressed := False;
 
-  // Button 5: Delete File (Normal)
-  FButtons[5].IconId := ICON_FILE_DELETE;
-  FButtons[5].Hint := 'Delete file';
-  FButtons[5].ButtonType := btNormal;
-  FButtons[5].IsPressed := False;
+  // Button 5: Separator - теперь индекс 5 (был 6)
+  FButtons[5].IconId := 0;
+  FButtons[5].Hint := '';
+  FButtons[5].ButtonType := btSeparator;
 
-  // Button 6: Separator
-  FButtons[6].IconId := 0;
-  FButtons[6].Hint := '';
-  FButtons[6].ButtonType := btSeparator;
+  // Button 6: Previous (Normal) - теперь индекс 6 (был 7)
+  FButtons[6].IconId := ICON_PLAYER_PREVIOUS;
+  FButtons[6].Hint := 'Previous track (Ctrl+Left)';
+  FButtons[6].ButtonType := btNormal;
+  FButtons[6].IsPressed := False;
 
-  // Button 7: Previous (Normal)
-  FButtons[7].IconId := ICON_PLAYER_PREVIOUS;
-  FButtons[7].Hint := 'Previous track (Ctrl+Left)';
+  // Button 7: Play (Normal) - теперь индекс 7 (был 8)
+  FButtons[7].IconId := ICON_PLAYER_PLAY;
+  FButtons[7].Hint := 'Play (Space)';
   FButtons[7].ButtonType := btNormal;
   FButtons[7].IsPressed := False;
 
-  // Button 8: Play (Normal)
-  FButtons[8].IconId := ICON_PLAYER_PLAY;
-  FButtons[8].Hint := 'Play (Space)';
+  // Button 8: Pause (Normal) - теперь индекс 8 (был 9)
+  FButtons[8].IconId := ICON_PLAYER_PAUSE;
+  FButtons[8].Hint := 'Pause (Space)';
   FButtons[8].ButtonType := btNormal;
   FButtons[8].IsPressed := False;
 
-  // Button 9: Pause (Normal)
-  FButtons[9].IconId := ICON_PLAYER_PAUSE;
-  FButtons[9].Hint := 'Pause (Space)';
+  // Button 9: Stop (Normal) - теперь индекс 9 (был 10)
+  FButtons[9].IconId := ICON_PLAYER_STOP;
+  FButtons[9].Hint := 'Stop (S)';
   FButtons[9].ButtonType := btNormal;
   FButtons[9].IsPressed := False;
 
-  // Button 10: Stop (Normal)
-  FButtons[10].IconId := ICON_PLAYER_STOP;
-  FButtons[10].Hint := 'Stop (S)';
+  // Button 10: Next (Normal) - теперь индекс 10 (был 11)
+  FButtons[10].IconId := ICON_PLAYER_NEXT;
+  FButtons[10].Hint := 'Next track (Ctrl+Right)';
   FButtons[10].ButtonType := btNormal;
   FButtons[10].IsPressed := False;
 
-  // Button 11: Next (Normal)
-  FButtons[11].IconId := ICON_PLAYER_NEXT;
-  FButtons[11].Hint := 'Next track (Ctrl+Right)';
-  FButtons[11].ButtonType := btNormal;
-  FButtons[11].IsPressed := False;
+  // Button 11: Separator - теперь индекс 11 (был 12)
+  FButtons[11].IconId := 0;
+  FButtons[11].Hint := '';
+  FButtons[11].ButtonType := btSeparator;
 
-  // Button 12: Separator
-  FButtons[12].IconId := 0;
-  FButtons[12].Hint := '';
-  FButtons[12].ButtonType := btSeparator;
+  // Button 12: Loop (Toggle) - теперь индекс 12 (был 13)
+  FButtons[12].IconId := ICON_REPEAT_FILL;
+  FButtons[12].Hint := 'Track Loop';
+  FButtons[12].ButtonType := btToggle;
+  FButtons[12].ToggleState := False;
 
-  // Button 13: Loop (Toggle)
-  FButtons[13].IconId := ICON_REPEAT_FILL;
-  FButtons[13].Hint := 'Track Loop';
+  // Button 13: Shuffle (Toggle) - теперь индекс 13 (был 14)
+  FButtons[13].IconId := ICON_SHUFFLE_FILL;
+  FButtons[13].Hint := 'Shuffle';
   FButtons[13].ButtonType := btToggle;
   FButtons[13].ToggleState := False;
 
-  // Button 14: Shuffle (Toggle)
-  FButtons[14].IconId := ICON_SHUFFLE_FILL;
-  FButtons[14].Hint := 'Shuffle';
-  FButtons[14].ButtonType := btToggle;
-  FButtons[14].ToggleState := False;
+  // Button 14: separator - теперь индекс 14 (был 15)
+  FButtons[14].IconId := 0;
+  FButtons[14].Hint := '';
+  FButtons[14].ButtonType := btSeparator;
 
-  // Button 15: separator
+  // Button 15: Color Theme (Combo) - теперь индекс 15 (был 16)
   FButtons[15].IconId := 0;
-  FButtons[15].Hint := '';
-  FButtons[15].ButtonType := btSeparator;
+  FButtons[15].Hint := 'Color Theme';
+  FButtons[15].ButtonType := btCombo;
+  FButtons[15].ComboIndex := 0;  // Индекс выбранной темы (0 - default)
 
-  // Button 16: Color Theme (Combo)
+   // Button 16: Separator - теперь индекс 16 (был 17)
   FButtons[16].IconId := 0;
-  FButtons[16].Hint := 'Color Theme';
-  FButtons[16].ButtonType := btCombo;
-  FButtons[16].ComboIndex := 0;  // Индекс выбранной темы (0 - default)
+  FButtons[16].Hint := '';
+  FButtons[16].ButtonType := btSeparator;
 
-   // Button 17: Separator
-  FButtons[17].IconId := 0;
-  FButtons[17].Hint := '';
-  FButtons[17].ButtonType := btSeparator;
-
-  // Button 11: Next (Normal)
-  FButtons[18].IconId := ICON_INFO;
-  FButtons[18].Hint := 'About';
-  FButtons[18].ButtonType := btNormal;
-  FButtons[18].IsPressed := False;
+  // Button 17: About (Normal) - теперь индекс 17 (был 18)
+  FButtons[17].IconId := ICON_INFO;
+  FButtons[17].Hint := 'About';
+  FButtons[17].ButtonType := btNormal;
+  FButtons[17].IsPressed := False;
 end;
 
 destructor TToolbar.Destroy;
@@ -318,34 +314,32 @@ end;
 
 function TToolbar.IsLoopEnabled: Boolean;
 begin
-  Result := FButtons[13].ToggleState;
+  Result := FButtons[12].ToggleState;  // Индекс 12 вместо 13
 end;
 
 procedure TToolbar.SetLoopEnabled(Loop: Boolean);
 begin
-  FButtons[13].ToggleState := Loop;
- // FButtons[14].ToggleState := not FButtons[13].ToggleState;
+  FButtons[12].ToggleState := Loop;  // Индекс 12 вместо 13
 end;
 
 function TToolbar.IsShuffleEnabled: Boolean;
 begin
-  Result := FButtons[14].ToggleState;
+  Result := FButtons[13].ToggleState;  // Индекс 13, не меняется
 end;
 
 procedure TToolbar.SetShuffle(state: Boolean);
 begin
-  FButtons[14].ToggleState := state;
- // FButtons[13].ToggleState := not FButtons[14].ToggleState;
+  FButtons[13].ToggleState := state;  // Индекс 13, не меняется
 end;
 
 function TToolbar.GetColorThemeIndex: Integer;
 begin
-  Result := FButtons[16].ComboIndex;
+  Result := FButtons[15].ComboIndex;  // Индекс 15 вместо 16
 end;
 
 procedure TToolbar.SetColorThemeIndex(Indx: Integer);
 begin
-  FButtons[16].ComboIndex := Indx;
+  FButtons[15].ComboIndex := Indx;  // Индекс 15 вместо 16
 end;
 
 procedure TToolbar.Draw;
@@ -402,43 +396,43 @@ begin
             else
               GuiSetState(STATE_DISABLED);
           end;
-        3: GuiSetState(STATE_NORMAL); // NewDrive - always enabled
-        4:
+        // Кнопка New Drive (была индекс 3) - полностью удалена, индексы сдвинулись
+        3: // Add File (новый индекс 3)
           begin
             if FHasDiskLoaded then
               GuiSetState(STATE_NORMAL)
             else
               GuiSetState(STATE_DISABLED);
           end;
-        5:
+        4: // Delete File (новый индекс 4)
           begin
             if FHasFileSelected then
               GuiSetState(STATE_NORMAL)
             else
               GuiSetState(STATE_DISABLED);
           end;
-        7, 11: // Previous/Next - enabled only if disk loaded and file selected
+        6, 10: // Previous (индекс 6) / Next (индекс 10) - enabled only if disk loaded and file selected
           begin
             if (FHasDiskLoaded) and (FHasFileSelected) then
               GuiSetState(STATE_NORMAL)
             else
               GuiSetState(STATE_DISABLED);
           end;
-        8: // Play - enabled if file selected and not playing
+        7: // Play (индекс 7) - enabled if file selected and not playing
           begin
             if FHasFileSelected and not FIsPlaying then
               GuiSetState(STATE_NORMAL)
             else
               GuiSetState(STATE_DISABLED);
           end;
-        9: // Pause - enabled only when playing
+        8: // Pause (индекс 8) - enabled only when playing
           begin
             if FIsPlaying and not FIsPaused then
               GuiSetState(STATE_NORMAL)
             else
               GuiSetState(STATE_DISABLED);
           end;
-        10: // Stop - enabled when playing or paused
+        9: // Stop (индекс 9) - enabled when playing or paused
           begin
             if FIsPlaying then
               GuiSetState(STATE_NORMAL)
@@ -458,17 +452,16 @@ begin
         begin
           OldToggleState := FButtons[i].ToggleState;
 
-
           GuiToggle(btnRect, PChar(btnText), @FButtons[i].ToggleState);
 
           if OldToggleState <> FButtons[i].ToggleState then
           begin
-            if i = 13 then
+            if i = 12 then  // Loop (новый индекс 12)
             begin
               if Assigned(FOnLoopClick) then
                 FOnLoopClick(Self);
             end
-            else if i = 14 then
+            else if i = 13 then  // Shuffle (индекс 13)
             begin
               if Assigned(FOnShuffleClick) then
                 FOnShuffleClick(Self);
@@ -487,15 +480,23 @@ begin
               case i of
                 0: if Assigned(FOnOpenClick) then FOnOpenClick(Self);
                 1: if Assigned(FOnExportClick) then FOnExportClick(Self);
-                3: if Assigned(FOnNewDriveClick) then FOnNewDriveClick(Self);
-                4: if Assigned(FOnAddFileClick) then FOnAddFileClick(Self);
-                5: if Assigned(FOnDeleteFileClick) then FOnDeleteFileClick(Self);
-                7: if Assigned(FOnPreviousClick) then FOnPreviousClick(Self);
-                8: if Assigned(FOnPlayClick) then FOnPlayClick(Self);
-                9: if Assigned(FOnPauseClick) then FOnPauseClick(Self);
-                10: if Assigned(FOnStopClick) then FOnStopClick(Self);
-                11: if Assigned(FOnNextClick) then FOnNextClick(Self);
-                18: if  Assigned(FOnAboutClick) then FOnAboutClick(Self);
+                // 2: Separator (пропускаем)
+                // Кнопка New Drive (была индекс 3) УДАЛЕНА
+                3: if Assigned(FOnAddFileClick) then FOnAddFileClick(Self);    // Add File
+                4: if Assigned(FOnDeleteFileClick) then FOnDeleteFileClick(Self); // Delete File
+                // 5: Separator (пропускаем)
+                6: if Assigned(FOnPreviousClick) then FOnPreviousClick(Self);  // Previous
+                7: if Assigned(FOnPlayClick) then FOnPlayClick(Self);          // Play
+                8: if Assigned(FOnPauseClick) then FOnPauseClick(Self);        // Pause
+                9: if Assigned(FOnStopClick) then FOnStopClick(Self);          // Stop
+                10: if Assigned(FOnNextClick) then FOnNextClick(Self);         // Next
+                // 11: Separator (пропускаем)
+                // 12: Loop (Toggle, пропускаем)
+                // 13: Shuffle (Toggle, пропускаем)
+                // 14: Separator (пропускаем)
+                // 15: Color Theme (Combo, пропускаем)
+                // 16: Separator (пропускаем)
+                17: if Assigned(FOnAboutClick) then FOnAboutClick(Self);       // About
               end;
             end;
           end
@@ -568,17 +569,12 @@ begin
     if Assigned(FOnOpenClick) and (not GuiIsLocked) then FOnOpenClick(Self);
   end;
 
-  if (IsKeyDown(KEY_RIGHT_CONTROL) or IsKeyDown(KEY_LEFT_CONTROL)) and IsKeyPressed(KEY_N) then
-  begin
-    if Assigned(FOnNewDriveClick) and (not GuiIsLocked) then FOnNewDriveClick(Self);
-  end;
+  // Удален обработчик Ctrl+N для New Drive
 
   if (IsKeyDown(KEY_RIGHT_CONTROL) or IsKeyDown(KEY_LEFT_CONTROL)) and IsKeyPressed(KEY_A) then
   begin
     if Assigned(FOnAddFileClick) and (not GuiIsLocked) then FOnAddFileClick(Self);
   end;
-
-
 end;
 
 end.

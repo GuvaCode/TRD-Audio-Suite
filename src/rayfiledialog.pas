@@ -654,6 +654,10 @@ var
   searchResult: Integer;
   searchPath: string;
   itemName: string;
+  fileExt: string;
+  filterExts: TStringList;
+  i: Integer;
+  matchFilter: Boolean;
 begin
   FDirectories.Clear;
   FFiles.Clear;
@@ -685,52 +689,97 @@ begin
     FDirectories.Add('..');
   {$ENDIF}
 
-  // Сканируем директорию
-  if FDirPathText <> '' then
-  begin
-    {$IFDEF WINDOWS}
-    searchPath := IncludeTrailingPathDelimiter(FDirPathText) + '*';
-    {$ELSE}
-    // Linux: для корня используем '/*', иначе 'путь/*'
-    if FDirPathText = '/' then
-      searchPath := '/*'
-    else
-      searchPath := IncludeTrailingPathDelimiter(FDirPathText) + '*';
-    {$ENDIF}
-
-    searchResult := FindFirst(searchPath, faDirectory or faAnyFile, searchRec);
-
-    try
-      while searchResult = 0 do
+  // Разбираем фильтр на отдельные расширения
+  filterExts := TStringList.Create;
+  try
+    if FFilter <> '' then
+    begin
+      // Разделяем по точке с запятой и убираем точки
+      filterExts.Delimiter := ';';
+      filterExts.DelimitedText := FFilter;
+      for i := 0 to filterExts.Count - 1 do
       begin
-        itemName := searchRec.Name;
-
-        if (itemName = '.') or (itemName = '..') then
-        begin
-          searchResult := FindNext(searchRec);
-          Continue;
-        end;
-
-        if ((searchRec.Attr and faDirectory) <> 0) and ((searchRec.Attr and faHidden) = 0) then
-        begin
-          FDirectories.Add(itemName);
-        end
-        else if (searchRec.Attr and faHidden) = 0 then
-        begin
-          if (FFilter = '') or (Pos(LowerCase(FFilter), LowerCase(itemName)) > 0) then
-            FFiles.Add(itemName);
-        end;
-
-        searchResult := FindNext(searchRec);
+        filterExts[i] := Trim(filterExts[i]);
+        // Убираем ведущую точку, если есть
+        if (filterExts[i] <> '') and (filterExts[i][1] = '.') then
+          filterExts[i] := Copy(filterExts[i], 2, Length(filterExts[i]) - 1);
+        // Приводим к нижнему регистру для сравнения
+        filterExts[i] := LowerCase(filterExts[i]);
       end;
-    finally
-      FindClose(searchRec);
     end;
+
+    // Сканируем директорию
+    if FDirPathText <> '' then
+    begin
+      {$IFDEF WINDOWS}
+      searchPath := IncludeTrailingPathDelimiter(FDirPathText) + '*';
+      {$ELSE}
+      // Linux: для корня используем '/*', иначе 'путь/*'
+      if FDirPathText = '/' then
+        searchPath := '/*'
+      else
+        searchPath := IncludeTrailingPathDelimiter(FDirPathText) + '*';
+      {$ENDIF}
+
+      searchResult := FindFirst(searchPath, faDirectory or faAnyFile, searchRec);
+
+      try
+        while searchResult = 0 do
+        begin
+          itemName := searchRec.Name;
+
+          if (itemName = '.') or (itemName = '..') then
+          begin
+            searchResult := FindNext(searchRec);
+            Continue;
+          end;
+
+          if ((searchRec.Attr and faDirectory) <> 0) and ((searchRec.Attr and faHidden) = 0) then
+          begin
+            FDirectories.Add(itemName);
+          end
+          else if (searchRec.Attr and faHidden) = 0 then
+          begin
+            // Проверка фильтра
+            matchFilter := True;
+            if FFilter <> '' then
+            begin
+              matchFilter := False;
+              fileExt := LowerCase(ExtractFileExt(itemName));
+              // Убираем точку из расширения
+              if (fileExt <> '') and (fileExt[1] = '.') then
+                fileExt := Copy(fileExt, 2, Length(fileExt) - 1);
+
+              // Проверяем, соответствует ли расширение одному из фильтров
+              for i := 0 to filterExts.Count - 1 do
+              begin
+                if filterExts[i] = '' then Continue;
+                if fileExt = filterExts[i] then
+                begin
+                  matchFilter := True;
+                  Break;
+                end;
+              end;
+            end;
+
+            if matchFilter then
+              FFiles.Add(itemName);
+          end;
+
+          searchResult := FindNext(searchRec);
+        end;
+      finally
+        FindClose(searchRec);
+      end;
+    end;
+  finally
+    filterExts.Free;
   end;
 
   FDirectories.Sort;
   FFiles.Sort;
 end;
+
 
 {$IFDEF WINDOWS}
 procedure TCustomFileDialog.LoadDrivesList;
