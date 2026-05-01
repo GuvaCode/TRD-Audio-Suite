@@ -11,7 +11,7 @@ TR-DOS Audio Suite is a desktop application for managing TR-DOS disk images (.tr
 
 ### Disk Image Management
 
-- Open, create, and edit TR-DOS disk images (.trd)
+- Open and edit TR-DOS or SCL disk images (.trd, .scl)
 - Drag & drop support for files and disk images
 - Add and delete files on the disk image
 - Export files from the disk image

@@ -19,11 +19,6 @@ const
   PANEL_MARGIN = 10;
   BOTTOM_PANEL_HEIGHT = 20;
 
-  {$IFDEF WINDOWS}
-  PATH_SEPARATOR = '\';
-  {$ELSE}
-  PATH_SEPARATOR = '/';
-  {$ENDIF}
 
  {$IFDEF WINDOWS}
   STYLE_DIR = 'data\styles\';
@@ -809,7 +804,7 @@ begin
   // Блокируем GUI если активен любой диалог
   if FOpenDialog.IsActive or FSaveDialog.IsActive or
      FExportDialog.IsActive or FAddFileDialog.IsActive or
-     FAboutState.windowActive then
+     FAboutState.windowActive or FvisSettingsWindow.windowActive then
     GuiLock
   else
     GuiUnLock;

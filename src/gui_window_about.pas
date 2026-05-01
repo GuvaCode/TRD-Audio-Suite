@@ -241,7 +241,11 @@ var
 begin
   if state.windowActive then
   begin
-
+     if IsWindowResized then
+  begin
+     state.windowBounds.x := GetWindowCenterX(Round(state.windowBounds.width));
+    state.windowBounds.y := GetWindowCenterY(Round(state.windowBounds.height));
+  end;
     // Update window dragging
     if state.supportDrag then
     begin

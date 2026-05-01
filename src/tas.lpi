@@ -102,9 +102,6 @@
       <OtherUnitFiles Value="Emulator"/>
       <UnitOutputDirectory Value="../lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
-    <CodeGeneration>
-      <TargetOS Value="win64"/>
-    </CodeGeneration>
     <Linking>
       <Debugging>
         <GenerateDebugInfo Value="False"/>
